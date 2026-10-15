@@ -1,0 +1,6 @@
+# what a composer download (dist) leaves out - the repo keeps them
+/.gitignore export-ignore
+/.gitattributes export-ignore
+
+# the hub installers run on Linux/macOS - never CRLF there
+*.sh text eol=lf
