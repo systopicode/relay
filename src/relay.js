@@ -127,41 +127,94 @@
 		relay.heard = channel => {
 			pending.add(channel);
 			if (!timer) {
-				timer = setTimeout(relay.refresh, GATHER_MS);
+				timer = setTimeout(() => relay.refresh(false), GATHER_MS);
 			}
 		};
 
 		/**
-		 * Nothing took the changes along: one PUT to the url on screen, the
-		 * header carries them, the server re-renders what read them. Not while
-		 * a request is on its way - its answer may be what was missing, and
-		 * the next request takes along what is left.
+		 * iOS (Safari and Chrome, both WebKit) often resumes a frozen page
+		 * with pageshow or focus and no further visibilitychange. A scroll or
+		 * a tap is also proof the page is on screen, even when document.hidden
+		 * still says otherwise — and neither of those sends a request of its
+		 * own, so without this the gathered channels would just sit there.
 		 */
-		relay.refresh = () => {
-			timer = null;
+		var wakeArmed = false;
+		var armWake = () => {
+			if (wakeArmed) {
+				return;
+			}
+			wakeArmed = true;
+			var wake = () => {
+				wakeArmed = false;
+				waitingVisible = false;
+				if (document.visibilityState !== 'visible' && !document.hasFocus()) {
+					armWake();
+					return;
+				}
+				relay.refresh(true);
+			};
+			document.addEventListener('visibilitychange', wake, {once: true});
+			window.addEventListener('pageshow', wake, {once: true});
+			window.addEventListener('focus', wake, {once: true});
+		};
+		var poke = () => {
+			if (pending.size) {
+				relay.refresh(true);
+			}
+		};
+		window.addEventListener('touchend', poke, {passive: true});
+		window.addEventListener('pointerup', poke, {passive: true});
+		window.addEventListener('scroll', poke, true);
+
+		/**
+		 * Nothing took the changes along: one PUT to the url on screen.
+		 * The header carries them, and so does the body (`changed`) — the
+		 * server reads both. Not while a request is on its way: its answer
+		 * may be what was missing, and the next request takes along what is left.
+		 * force: the page is being looked at (tap, scroll, pageshow) even if
+		 * document.hidden has not caught up yet.
+		 */
+		relay.refresh = force => {
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+			}
 			if (!pending.size) {
 				return;   // a request took them along meanwhile
 			}
-			if (document.hidden) {   // a hidden tab asks when it is looked at again
-				if (!waitingVisible) {
-					waitingVisible = true;
-					document.addEventListener('visibilitychange', () => {
-						waitingVisible = false;
-						relay.refresh();
-					}, {once: true});
-				}
+			var visible = force === true || document.visibilityState === 'visible' || document.hasFocus();
+			if (!visible) {
+				waitingVisible = true;
+				armWake();
+				p('relay: wait until visible', document.visibilityState);
 				return;
 			}
 			if (sys.core.server.inFlight > 0) {
+				p('relay: wait for the request in flight');
 				sys.core.server.onIdle(() => {
 					if (!timer) {
-						timer = setTimeout(relay.refresh, 0);
+						timer = setTimeout(() => relay.refresh(force), 0);
 					}
 				});
 				return;
 			}
-			p('relay: refresh', sys.http.renderedUrl(), Array.from(pending));
-			sys.core.server.sendCall({}, sys.http.renderedUrl());
+			var channels = Array.from(pending);
+			p('relay: refresh', sys.http.renderedUrl(), channels);
+			var answered = false;
+			var watchdog = setTimeout(() => {
+				if (answered) {
+					return;
+				}
+				channels.forEach(channel => pending.add(channel));
+				p('relay: refresh failed, will retry', channels);
+				if (!timer) {
+					timer = setTimeout(() => relay.refresh(true), GATHER_MS);
+				}
+			}, 5000);
+			sys.core.server.sendCall({changed: channels}, sys.http.renderedUrl()).done(() => {
+				answered = true;
+				clearTimeout(watchdog);
+			});
 		};
 	});
 })();
