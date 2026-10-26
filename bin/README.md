@@ -54,7 +54,8 @@ Was das Skript tut:
    `/usr/local/bin/centrifugo` legen.
 2. Systembenutzer `centrifugo` anlegen (ohne Login, ohne Home).
 3. `/etc/centrifugo/config.json` schreiben, `root:centrifugo`, Modus 640. Namespaces
-   `data` (Signale der Tabellen, auch für Anonyme) und `user` (pro Benutzer). Ohne
+   `data` (Signale der Tabellen, auch für Anonyme), `user` (pro Benutzer) und `device`
+   (pro Gerät: „logout“ beim Sperren). Ohne
    Admin-Oberfläche und ohne `debug`, beides gibt es nur auf DEV.
 4. systemd-Dienst `centrifugo` (`/etc/systemd/system/centrifugo.service`): startet mit
    dem Server, startet nach einem Absturz neu, läuft abgeschottet (`ProtectSystem`,
@@ -173,6 +174,20 @@ Vorher den [Changelog](https://github.com/centrifugal/centrifugo/releases) auf
 Änderungen an der Config prüfen. Das Skript ruft `centrifugo checkconfig` auf und bricht
 ab, wenn die alte Config nicht mehr passt. Offene Browser verbinden sich nach dem
 Neustart von selbst neu.
+
+Ein weiterer Lauf lässt die Config stehen. Ein Namespace, der später dazukam, muss in
+einem bestehenden Hub **von Hand** nachgetragen werden:
+
+- **`device`** (seit 2026-10-26): der Kanal eines Geräts. Ein gesperrtes Gerät
+  („Meine Geräte“, cms/users) hört dort „logout“, und seine offenen Seiten wechseln
+  sofort zur Anmeldung. In `channel.namespaces` der Config ergänzen und den Hub neu starten:
+
+  ```json
+  { "name": "device", "allow_subscribe_for_client": true }
+  ```
+
+  Ohne ihn lehnt der Hub das Abo ab (`relay: device subscription error`), und die
+  Sperre wirkt wie ohne relay beim nächsten Request.
 
 ## Geheimnis wechseln
 

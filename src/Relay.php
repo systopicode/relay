@@ -43,6 +43,11 @@ final class Relay
     /** @var array<string, string> table => channel */
     private static array $topics = [];
 
+    /** @var array<string, array<string, mixed>> channel => message, sent at the end like the changes */
+    private static array $messages = [];
+
+    private static bool $flushRegistered = false;
+
     /** afterConnect (autoload.php): the config is read, the database is there. */
     public static function boot(): void
     {
@@ -98,6 +103,44 @@ final class Relay
     }
 
     /**
+     * The channel of one device (Systopic\System\Auth\Devices): what is meant
+     * for exactly this browser, app or screen - today "log out" when it is
+     * revoked, later the remote control of a screen. An HMAC like topic()
+     * unless plainTopics: a device id is easy to guess.
+     */
+    public static function deviceTopic(int $deviceId): string
+    {
+        return 'device:' . self::prefix() . '/' . (
+            (self::$config['plainTopics'] ?? false)
+                ? (string) $deviceId
+                : substr(hash_hmac('sha256', self::prefix() . '|device|' . $deviceId, (string) self::$config['secret']), 0, 24)
+        );
+    }
+
+    /**
+     * A message for one channel - `['op' => 'logout']` to a device. Out at the
+     * end of the request with the changes, never with an exception.
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function tell(string $channel, array $data): void
+    {
+        if (self::$config === null) {
+            return;
+        }
+        self::registerFlush();
+        self::$messages[$channel] = $data;
+    }
+
+    private static function registerFlush(): void
+    {
+        if (!self::$flushRegistered) {
+            self::$flushRegistered = true;
+            register_shutdown_function([self::class, 'flush']);
+        }
+    }
+
+    /**
      * These tables were written to. This request's own render takes them as
      * changed (Dependencies::wrote() — the window that saved gets everything
      * the save touched in its answer), the hub hears of them at the end, for
@@ -108,9 +151,7 @@ final class Relay
         if (self::$config === null || $tables === []) {
             return;
         }
-        if (self::$changed === []) {
-            register_shutdown_function([self::class, 'flush']);
-        }
+        self::registerFlush();
         $topics = [];
         foreach ($tables as $table) {
             $topics[] = $topic = self::topic($table);
@@ -133,16 +174,23 @@ final class Relay
      */
     public static function flush(): void
     {
-        if (self::$changed === [] || self::$publisher === null) {
+        if ((self::$changed === [] && self::$messages === []) || self::$publisher === null) {
             return;
         }
         $channels = array_keys(self::$changed);
+        $messages = self::$messages;
         self::$changed = [];
+        self::$messages = [];
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
         }
         try {
-            self::$publisher->broadcast($channels, ['op' => 'change'] + self::origin());
+            if ($channels !== []) {
+                self::$publisher->broadcast($channels, ['op' => 'change'] + self::origin());
+            }
+            foreach ($messages as $channel => $data) {
+                self::$publisher->broadcast([$channel], $data);
+            }
         } catch (\Throwable $e) {
             error_log('systopic/relay: ' . $e->getMessage());
         }

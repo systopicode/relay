@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Systopic\Relay;
 
+use Systopic\System\Auth\Devices;
 use Systopic\System\Auth\Session;
 use Systopic\System\Dom\Dependencies;
 
@@ -29,6 +30,12 @@ final class ClientData
             'client' => (string) Relay::config('client', '/connection/'),
             'token'  => Token::connection(self::subject(), (int) Relay::config('tokenTtl', 43200), (string) Relay::config('secret')),
         ];
+        // The device this window belongs to: told "logout" when it is revoked
+        // (Devices::revoke) - its pages go to the login at once.
+        $device = class_exists(Devices::class) ? Devices::current() : null;
+        if ($device !== null) {
+            $data['device'] = Relay::deviceTopic((int) $device->id);
+        }
         // Only after a render: a PUT that ran an action without one would
         // otherwise hand the browser an empty list and end every subscription.
         if (Dependencies::rendered()) {

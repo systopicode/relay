@@ -87,6 +87,7 @@
 				client.on('error', ctx => p('relay: hub error', ctx.type, ctx.error));
 				client.connect();
 			}
+			relay.followDevice(d.device);
 			if (!Array.isArray(d.channels)) {
 				return;   // nothing rendered in that response - keep listening
 			}
@@ -121,6 +122,37 @@
 			if (added.length || removed.length) {
 				p('relay: channels', {added: added, removed: removed, total: subs.size});
 			}
+		};
+
+		/**
+		 * The channel of this window's device (Relay::deviceTopic), apart from
+		 * the data channels: it holds as long as the device does. "logout"
+		 * (the device was revoked - Meine Geräte, cms/users) first asks the
+		 * server with the heartbeat header (X-Session-Check): that forces the
+		 * device check, which otherwise runs once a minute, and ends the
+		 * session. Then the reload shows the login.
+		 */
+		var deviceSub = null;
+		relay.followDevice = channel => {
+			if (!channel || (deviceSub && deviceSub.channel === channel)) {
+				return;
+			}
+			if (deviceSub) {
+				deviceSub.unsubscribe();
+				client.removeSubscription(deviceSub);
+			}
+			deviceSub = client.getSubscription(channel) || client.newSubscription(channel);
+			deviceSub.on('publication', ctx => {
+				p('relay: device message', channel, ctx.data);
+				if (ctx.data && ctx.data.op === 'logout') {
+					fetch(location.pathname, {headers: {'X-Session-Check': '1'}, credentials: 'same-origin', cache: 'no-store'})
+						.catch(() => {})
+						.then(() => location.reload());
+				}
+			});
+			deviceSub.on('error', ctx => p('relay: device subscription error', channel, ctx.error));
+			deviceSub.subscribe();
+			p('relay: device channel', channel);
 		};
 
 		/** A channel changed - gather for a moment, then ask once. */
