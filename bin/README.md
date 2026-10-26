@@ -14,8 +14,8 @@ Je Plattform gibt es ein Skript, das installiert und beim nächsten Aufruf aktua
 | Windows, Laragon (DEV) | `windows/install.ps1` | eigener Benutzer | 8000 / 8001 | Apache-Datei, **schreibt das Skript** |
 | macOS, ServBay (DEV) | `macos/install.sh` | eigener Benutzer, ohne sudo | 8000 / 8001 | im ServBay-Webserver, **von Hand** (Skript gibt sie aus) |
 
-Getestet am 2026-10-15: Windows auf DEV.ojoffice, Ubuntu 24.04 in WSL. **macOS ist noch
-ungetestet.**
+Getestet am 2026-10-15: Windows auf DEV.ojoffice, Ubuntu 24.04 in WSL. macOS am
+2026-10-20 auf DEV.lsmacbook (ServBay, Apache).
 
 Alle drei Skripte:
 
@@ -102,28 +102,69 @@ dann stehen die Tabellennamen lesbar in den Kanälen.
 
 Option `-Laragon` für einen anderen Laragon-Ordner (Vorgabe `C:\laragon`).
 
-## macOS / ServBay (DEV) — ungetestet
+## macOS / ServBay (DEV)
 
-Im Terminal als eigener Benutzer, **ohne** sudo:
+Im Terminal als eigener Benutzer, **ohne** sudo. Autostart ist der launchd-Agent,
+kein extra Schritt:
 
 ```bash
-bash /pfad/zu/packages/relay/bin/macos/install.sh
+bash /pfad/zu/packages/relay/bin/macos/install.sh \
+	--origins=https://dev.local,https://localhost
 ```
+
+`--origins` beim **ersten** Lauf. Die Vorgabe des Skripts ist nur
+`https://localhost` und die IPv4-Adressen des Macs. Die Seite läuft unter
+`https://dev.local`, und ohne diese Origin lehnt der Hub den Browser ab
+(`relay: hub error`). Weitere Origins später in `client.allowed_origins` in
+`~/.centrifugo/config.json`, danach der Agent neu (siehe unten).
 
 Was das Skript tut:
 
 1. Binary (`darwin_arm64`/`darwin_amd64`) laden, prüfen, nach `~/.centrifugo/centrifugo`
    legen.
-2. `~/.centrifugo/config.json` (Modus 600) wie unter Windows schreiben, Origins
-   `https://localhost` und die IPv4-Adressen des Macs.
+2. `~/.centrifugo/config.json` (Modus 600) wie unter Windows schreiben.
 3. launchd-Agent `~/Library/LaunchAgents/net.systopic.centrifugo.plist`: startet beim
-   Anmelden, startet nach einem Absturz neu, Log in `~/.centrifugo/centrifugo.log`.
-4. Prüfen, dann die Weiterleitung für nginx, Caddy **und** Apache ausgeben. In ServBay
-   trägst du die Variante ein, die der Webserver der Projekt-Site verwendet. Welcher das
-   ist, ist noch offen (Plan, „Plattformen“). Danach den `relay`-Block wie unter Windows.
+   Anmelden (`RunAtLoad`), startet nach einem Absturz neu (`KeepAlive`), Log in
+   `~/.centrifugo/centrifugo.log`.
+4. Prüfen (`health: {}`, `publish: {"result":{}}`, Socket 400), dann die
+   Weiterleitung für nginx, Caddy und Apache ausgeben, plus den `relay`-Block.
+
+**Weiterleitung:** ServBay bedient `dev.local` mit Apache
+(`/Applications/ServBay/etc/apache/`, dieselbe Datei wie unter `package/etc/apache/`).
+`mod_proxy`, `mod_proxy_http` und `mod_proxy_wstunnel` sind in der `httpd.conf`
+schon geladen. Die Datei `vhosts/dev.local.conf` ist von ServBay erzeugt und wird
+überschrieben — die beiden `ProxyPass`-Zeilen gehören in eine **eigene** Datei
+daneben, `vhosts/centrifugo.conf`. `httpd.conf` lädt `vhosts/*.conf`, die Regeln
+gelten für die VirtualHosts mit.
+
+```apache
+# systopic/relay — Centrifugo on 127.0.0.1:8000.
+ProxyPass /connection/websocket/ http://127.0.0.1:8000/connection/websocket upgrade=websocket
+ProxyPass /connection/ http://127.0.0.1:8000/connection/ upgrade=websocket flushpackets=on
+```
+
+Danach Apache neu laden (nicht die generierte vhost-Datei anfassen):
+
+```bash
+bash /Applications/ServBay/script/apache.sh reload
+curl -sk -o /dev/null -w '%{http_code}\n' https://dev.local/connection/websocket/
+```
+
+400 ist richtig. 404 heißt, die Datei liegt nicht im geladenen `vhosts/`. 502
+heißt, der Hub ist nicht da.
+
+Den ausgegebenen `relay`-Block nach
+`<projekt>/config/DEV.<rechner>.config.json` (hier `DEV.lsmacbook.config.json`),
+mit `"plainTopics": true`.
 
 Betrieb: `launchctl print gui/$(id -u)/net.systopic.centrifugo`,
-`tail -f ~/.centrifugo/centrifugo.log`.
+`tail -f ~/.centrifugo/centrifugo.log`. Agent neu laden, nachdem die Config
+geändert wurde:
+
+```bash
+launchctl bootout gui/$(id -u)/net.systopic.centrifugo
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.systopic.centrifugo.plist
+```
 
 ## Aktualisieren
 

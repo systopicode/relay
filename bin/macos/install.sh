@@ -2,7 +2,7 @@
 # Installs or updates the Centrifugo hub of systopic/relay on a Mac workstation
 # (DEV, ServBay): binary, config, launchd agent of the logged-in user (no sudo).
 # The proxy /connection/ in ServBay's web server is printed, not written.
-# See ../README.md. Untested so far (written on Windows, bash 3.2 compatible).
+# See ../README.md. Tested 2026-10-20 on DEV.lsmacbook (ServBay, Apache, bash 3.2).
 #
 #   bash install.sh                       install or update
 #   bash install.sh --print               only print proxy and relay blocks
