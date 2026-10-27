@@ -49,7 +49,7 @@ final class ClientData
     }
 
     /** The user as the hub knows them: always with the project, set here, never by the browser. */
-    private static function subject(): string
+    public static function subject(): string
     {
         $id = Session::id();
         return $id === null ? '' : Relay::prefix() . ':' . $id;

@@ -189,6 +189,16 @@ einem bestehenden Hub **von Hand** nachgetragen werden:
   Ohne ihn lehnt der Hub das Abo ab (`relay: device subscription error`), und die
   Sperre wirkt wie ohne relay beim nächsten Request.
 
+- **`debug`** (seit 2026-10-27): die Debug-Ausgabe eines Browsers live in einem
+  Fenster (cms/tools/debug, `RemoteDebug`). **Ohne** `allow_subscribe_for_client`:
+  ein Kanal dort nimmt nur, wer einen Subscription-Token hat, und den gibt nur das
+  Panel aus, nur an Superuser. Wer ihn schon mit `allow_subscribe_for_client` hat
+  (frühe Installationen), nimmt das heraus:
+
+  ```json
+  { "name": "debug" }
+  ```
+
 ## Geheimnis wechseln
 
 Neues `hmac_secret_key` eintragen, das alte als `hmac_previous_secret_key` mit

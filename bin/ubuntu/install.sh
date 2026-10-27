@@ -153,7 +153,8 @@ if [ "$FIRST" = 1 ]; then
 		"namespaces": [
 			{ "name": "data", "allow_subscribe_for_client": true, "allow_subscribe_for_anonymous": true },
 			{ "name": "user", "allow_user_limited_channels": true, "allow_subscribe_for_client": true },
-			{ "name": "device", "allow_subscribe_for_client": true }
+			{ "name": "device", "allow_subscribe_for_client": true },
+			{ "name": "debug" }
 		]
 	}
 }

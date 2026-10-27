@@ -16,5 +16,8 @@ use Systopic\System\Sys\Packages;
 // the root its script loads from (src/relay.js, public/js/centrifuge.js)
 Packages::addLib('systopic/relay', __DIR__);
 
+// cms/tools/debug - the list of browsers whose debug output can be watched (RemoteDebug)
+Packages::addPanels('systopic/relay', 'Systopic\Relay\Panels');
+
 // after the config and the database: observer, script, client data
 Hooks::on('afterConnect', static fn() => \Systopic\Relay\Relay::boot());

@@ -59,6 +59,7 @@ final class Relay
         self::$publisher = new Centrifugo((string) $config['api'], (string) ($config['apiKey'] ?? ''));
         Scope::addObserver(new Observer());
         ClientData::register();
+        RemoteDebug::boot();
     }
 
     public static function enabled(): bool
@@ -130,6 +131,21 @@ final class Relay
         }
         self::registerFlush();
         self::$messages[$channel] = $data;
+    }
+
+    /**
+     * Straight to the hub, now - not at the end of the request like tell().
+     * For what has to arrive while the request still runs (RemoteDebug).
+     * Throws when the hub does not answer within the publisher's timeout.
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function publishNow(string $channel, array $data): void
+    {
+        if (self::$publisher === null) {
+            throw new \RuntimeException('relay is off');
+        }
+        self::$publisher->broadcast([$channel], $data);
     }
 
     private static function registerFlush(): void

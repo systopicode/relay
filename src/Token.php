@@ -20,6 +20,17 @@ final class Token
         return self::sign(['sub' => $sub, 'iat' => $now, 'exp' => $now + $ttl], $secret);
     }
 
+    /**
+     * The permission to subscribe to one channel of a namespace that does not
+     * let clients subscribe on their own (`debug`). `$sub` has to be the one
+     * of the connection token - the hub checks that.
+     */
+    public static function subscription(string $sub, string $channel, int $ttl, string $secret): string
+    {
+        $now = time();
+        return self::sign(['sub' => $sub, 'channel' => $channel, 'iat' => $now, 'exp' => $now + $ttl], $secret);
+    }
+
     /** @param array<string, mixed> $claims */
     private static function sign(array $claims, string $secret): string
     {
