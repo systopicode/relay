@@ -6,9 +6,6 @@
  * The window of one watched browser: the debug tool's own windows (default,
  * ajax, route, time …), filled from the hub instead of from this request,
  * docked in tabbed panes (Panel::LAYOUT).
- * Every request of the watched browser starts with a line in `default`
- * (method, url) and ends with one (duration, status, the fatal error) - a
- * start without an end after a minute was killed.
  *
  * @var \Systopic\Relay\Panels\Root\Cms\Tools\Debug\Panel $this
  * @var array<string, mixed> $window
@@ -52,37 +49,19 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 		say(typeof sysdebug === 'undefined' ? 'the debug tool is not loaded here' : 'centrifuge.js did not load', true);
 		return;
 	}
-	var lib = sysdebug.export()[2];
 	// columns of tabbed panes instead of prompts at the edges - Panel::LAYOUT
 	// (a bake older than js/layout.js keeps them at the edges)
 	sysdebug.layout && (sysdebug.layout(cfg.layout).style.bottom = '24px');
 	var config = null;
-	var open = {};   // request id => timer that reports a missing end
 
-	/** a line of our own in a prompt - the way the tool shows a js value */
-	var line = (prompt, text) => sysdebug.getPrompt(prompt).update({events: [{values: lib.event.parseValues([text])}]});
-
+	// only the prompts - 'note' and 'end' (php stream.php) are not shown
 	var handle = message => {
 		switch (message.op) {
 			case 'start':
 				config = message.config || config;
-				line('default', '▶ ' + message.method + ' ' + message.url + (message.ajax ? '  (ajax)' : '') + '  #' + message.req);
-				open[message.req] = setTimeout(() => {
-					line('default', '⚠ #' + message.req + ' ' + message.url + ' - no end after 60 s: killed?');
-					delete open[message.req];
-				}, 60000);
 				break;
 			case 'events':
 				sysdebug.update({config: config || {}, prompts: message.prompts || []});
-				break;
-			case 'note':
-				line('default', '⚠ #' + message.req + ' ' + message.text);
-				break;
-			case 'end':
-				clearTimeout(open[message.req]);
-				delete open[message.req];
-				line('default', '■ #' + message.req + ' ' + message.ms + ' ms' + (message.status ? ', ' + message.status : '')
-					+ (message.error ? '  — ' + message.error : ''));
 				break;
 		}
 	};
