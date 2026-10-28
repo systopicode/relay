@@ -82,6 +82,33 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 		}
 	};
 
+	/**
+	 * Hovering the client layer tree outlines the layer in the watched page
+	 * (boxTreePrompt.js calls this for a node with a mark). One call at a
+	 * time and only the latest wish: leaving one header and entering the next
+	 * sends just the show, and a hide can never overtake it.
+	 */
+	var markWanted = null, markSent = 'hide', markBusy = false;
+	var sendMark = () => {
+		var wish = markWanted;
+		if (markBusy || wish === markSent) {
+			return;
+		}
+		markBusy = true;
+		markSent = wish;
+		var op = wish === 'hide' ? 'hide' : 'show';
+		fetch(cfg.mark + '&op=' + op + '&n=' + (op === 'show' ? wish : -1), {credentials: 'same-origin', cache: 'no-store'})
+			.catch(() => say('server not reachable', true))
+			.finally(() => {
+				markBusy = false;
+				sendMark();
+			});
+	};
+	sysdebug.onRemoteMark = (op, mark) => {
+		markWanted = op === 'show' ? mark : 'hide';
+		setTimeout(sendMark, 0);   // a hide right before a show is dropped
+	};
+
 	var url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + cfg.ws;
 	var client = new Centrifuge(url, {token: cfg.token});
 	client.on('disconnected', ctx => say('disconnected: ' + ctx.reason, true));

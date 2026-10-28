@@ -89,6 +89,7 @@
 			}
 			relay.followDevice(d.device);
 			relay.followActive(d.active);
+			relay.followDebugMarks(d.debugMarks);
 			if (!Array.isArray(d.channels)) {
 				return;   // nothing rendered in that response - keep listening
 			}
@@ -154,6 +155,27 @@
 			deviceSub.on('error', ctx => p('relay: device subscription error', channel, ctx.error));
 			deviceSub.subscribe();
 			p('relay: device channel', channel);
+		};
+
+		/**
+		 * A window elsewhere watches this browser's debug output (RemoteDebug)
+		 * and hovers its client layer tree: the debug tool outlines that layer
+		 * here (tools/debug js/remote.js). Only with a subscription token for
+		 * exactly this channel - the debug namespace is closed otherwise.
+		 */
+		var marksSub = null;
+		relay.followDebugMarks = marks => {
+			if (!marks || !marks.channel || (marksSub && marksSub.channel === marks.channel)) {
+				return;
+			}
+			if (marksSub) {
+				marksSub.unsubscribe();
+				client.removeSubscription(marksSub);
+			}
+			marksSub = client.getSubscription(marks.channel) || client.newSubscription(marks.channel, {token: marks.token});
+			marksSub.on('publication', ctx => window.sysdebug && sysdebug.remoteMark && sysdebug.remoteMark(ctx.data));
+			marksSub.on('error', ctx => p('relay: debug marks subscription error', marks.channel, ctx.error));
+			marksSub.subscribe();
 		};
 
 		/**

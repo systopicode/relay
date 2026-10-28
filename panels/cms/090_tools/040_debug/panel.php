@@ -19,7 +19,8 @@ use Systopic\System\Sys\Packages;
  * The window is no panel: `?debugWatch=<client>` answers with a page of its
  * own - the debug tool's scripts and styles and a connection to the hub - and
  * so do its pings and its goodbye. All three end the request before the CMS
- * renders anything.
+ * renders anything. So does `?debugMark=<session>&op=&n=`: the window hovers a node of
+ * the client layer tree, the watched page outlines that layer.
  */
 class Panel extends PanelNode
 {
@@ -35,6 +36,10 @@ class Panel extends PanelNode
         $ping = (string) \http::get(RemoteDebug::PING, '');
         if ($ping !== '') {
             $this->answer(['alive' => RemoteDebug::extend($ping)]);
+        }
+        $mark = (string) \http::get(RemoteDebug::MARK, '');
+        if ($mark !== '') {
+            $this->answer(['alive' => RemoteDebug::mark($mark, (string) \http::get('op', ''), (int) \http::get('n', -1))]);
         }
         $close = (string) \http::get(RemoteDebug::CLOSE, '');
         if ($close !== '') {
@@ -86,6 +91,7 @@ class Panel extends PanelNode
             'subToken' => $session === null ? '' : Token::subscription($subject, RemoteDebug::channel($session), $ttl, $secret),
             'ping'    => $session === null ? '' : $this->href . '?' . RemoteDebug::PING . '=' . $session,
             'close'   => $session === null ? '' : $this->href . '?' . RemoteDebug::CLOSE . '=' . $session,
+            'mark'    => $session === null ? '' : $this->href . '?' . RemoteDebug::MARK . '=' . $session,
             'pingSeconds' => 30,
         ];
         $centrifuge = (Packages::urls()['systopic/relay'] ?? '') . 'public/js/centrifuge.js';
