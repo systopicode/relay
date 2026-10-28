@@ -8,7 +8,7 @@ use Systopic\System\Auth\Session;
 
 /**
  * The debug output of one browser, live in a window on another machine - a
- * phone's requests read at the desk (packages/tools/.cursor/plans/debug-remote.plan.md).
+ * phone's requests read at the desk (packages/tools/.cursor/docs/debug-remote.md).
  *
  * Every browser on a stage with debug on gets an id of its own (cookie
  * `sysdebug_client`, before any login, also on the screen page) and lands in
