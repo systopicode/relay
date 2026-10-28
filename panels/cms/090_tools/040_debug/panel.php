@@ -33,14 +33,15 @@ class Panel extends PanelNode
      * tabs: prompt name => label. A prompt not named here lands in the last row.
      */
     public const LAYOUT = [
-        ['w' => 50, 'rows' => [
-            ['h' => 30, 'tabs' => ['time' => 'time']],
-            ['tabs' => ['domLayersServer' => 'serverRender', 'domLayersClient' => 'tree']],
+        ['w' => 60, 'rows' => [
+            ['h' => 20, 'tabs' => ['time' => 'time', 'route' => 'route']],
+            ['h' => 50, 'tabs' => ['domLayersServer' => 'serverRender','panelTreeDebug' => 'panelTreeDebug']],
             ['tabs' => ['default' => 'php']],
         ]],
         ['rows' => [
-            ['h' => 60, 'tabs' => ['js' => 'js']],
-            ['tabs' => ['route' => 'route', 'ajax' => 'ajax']],
+            ['h' => 20, 'tabs' => ['js' => 'js']],
+            ['h' => 50, 'tabs' => ['domLayersClient' => 'domLayersClient']],
+            ['tabs' => ['ajax' => 'ajax']],
         ]],
     ];
 

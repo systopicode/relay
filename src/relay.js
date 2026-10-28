@@ -81,7 +81,7 @@
 					// longer than its lifetime takes the last one it got
 					getToken: () => Promise.resolve(data().token)
 				});
-				client.on('connecting', ctx => p('relay: connecting', url, ctx.code, ctx.reason));
+				// client.on('connecting', ctx => p('relay: connecting', [url, ctx.code, ctx.reason]));
 				client.on('connected', ctx => p('relay: connected', {client: ctx.client, transport: ctx.transport, url: url}));
 				client.on('disconnected', ctx => p('relay: disconnected', ctx.code, ctx.reason));
 				client.on('error', ctx => p('relay: hub error', ctx.type, ctx.error));
@@ -154,7 +154,7 @@
 			});
 			deviceSub.on('error', ctx => p('relay: device subscription error', channel, ctx.error));
 			deviceSub.subscribe();
-			p('relay: device channel', channel);
+			p('relay: device channel', [channel]);
 		};
 
 		/**
@@ -219,13 +219,13 @@
 					clearTimeout(idleTimer);
 					idleTimer = null;
 				}
-				p('relay: inactive', activeChannel);
+				p('relay: inactive', [activeChannel]);
 				return;
 			}
 			activeSub = client.getSubscription(activeChannel) || client.newSubscription(activeChannel);
 			activeSub.on('error', ctx => p('relay: active subscription error', activeChannel, ctx.error));
 			activeSub.subscribe();
-			p('relay: active', activeChannel);
+			p('relay: active', [activeChannel]);
 			armIdle();
 		};
 		var noteUse = () => {
