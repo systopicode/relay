@@ -15,7 +15,10 @@ use Systopic\System\Auth\Session;
  * the list of `cms/tools/debug`, which opens a window for it. That window is a
  * session: while it lives, every request of that browser streams its debug
  * output (systopic\debug\stream) to the session's channel instead of into its
- * page, and the window shows it.
+ * page, and the window shows it. The page's own scripts print there too: their
+ * prompts come back as a POST to the page's url (?sysdebugPush), which boot()
+ * answers before anything renders - the js prompt and the client layer tree
+ * with its hover markers.
  *
  * The channel `debug:<prefix>/<session>` is in a namespace clients cannot
  * subscribe to on their own: the window gets a subscription token, and only
@@ -49,6 +52,13 @@ final class RemoteDebug
         if (PHP_SAPI === 'cli' || !self::available()) {
             return;
         }
+        // what the scripts of a watched page printed (tools/debug js/remote.js) -
+        // never a page, and not a visit: the list keeps the page's url
+        if (isset($_GET[\systopic\debug\stream::PUSH])) {
+            $session = self::session(self::read(), self::clientId());
+            $channel = $session === null ? null : self::channel($session);
+            \systopic\debug\sysdebug::streamPush($channel === null ? null : static fn(array $message) => Relay::publishNow($channel, $message));
+        }
         $session = self::touch(self::clientId());
         if ($session !== null && !isset($_GET[self::WATCH]) && !isset($_GET[self::PING]) && !isset($_GET[self::CLOSE])) {
             $channel = self::channel($session);
@@ -56,12 +66,12 @@ final class RemoteDebug
         }
     }
 
-    /** The hub is there and the debug tool is loaded, on and new enough to stream (since 2026-10-27). */
+    /** The hub is there and the debug tool is loaded, on and new enough to stream, page scripts included (since 2026-10-28). */
     public static function available(): bool
     {
         return Relay::enabled()
             && class_exists(\systopic\debug\sysdebug::class, false)
-            && method_exists(\systopic\debug\sysdebug::class, 'stream')
+            && method_exists(\systopic\debug\sysdebug::class, 'streamPush')
             && function_exists('DEBUG') && DEBUG();
     }
 
@@ -218,8 +228,14 @@ final class RemoteDebug
                 }
             });
         }
+        return self::session($data, $client);
+    }
+
+    /** the session watching $client, NULL when none is */
+    private static function session(array $data, string $client): ?string
+    {
         foreach ($data['sessions'] as $id => $entry) {
-            if (($entry['client'] ?? '') === $client && (int) ($entry['expires'] ?? 0) >= $now) {
+            if (($entry['client'] ?? '') === $client && (int) ($entry['expires'] ?? 0) >= time()) {
                 return (string) $id;
             }
         }
