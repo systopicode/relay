@@ -56,11 +56,12 @@ final class RemoteDebug
         }
     }
 
-    /** The hub is there and the debug tool is loaded and on. */
+    /** The hub is there and the debug tool is loaded, on and new enough to stream (since 2026-10-27). */
     public static function available(): bool
     {
         return Relay::enabled()
             && class_exists(\systopic\debug\sysdebug::class, false)
+            && method_exists(\systopic\debug\sysdebug::class, 'stream')
             && function_exists('DEBUG') && DEBUG();
     }
 
