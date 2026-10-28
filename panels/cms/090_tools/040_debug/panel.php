@@ -27,6 +27,23 @@ class Panel extends PanelNode
 {
     public $icon = 'fa-regular fa-bug';
 
+    /**
+     * How the window lays out the prompts (tools/debug js/layout.js): columns
+     * with w %, rows with h %, without either they share the rest. A row's
+     * tabs: prompt name => label. A prompt not named here lands in the last row.
+     */
+    public const LAYOUT = [
+        ['w' => 50, 'rows' => [
+            ['h' => 30, 'tabs' => ['time' => 'time']],
+            ['tabs' => ['domLayersServer' => 'serverRender', 'domLayersClient' => 'tree']],
+            ['tabs' => ['default' => 'php']],
+        ]],
+        ['rows' => [
+            ['h' => 60, 'tabs' => ['js' => 'js']],
+            ['tabs' => ['route' => 'route', 'ajax' => 'ajax']],
+        ]],
+    ];
+
     public function buildGranted()
     {
         return Session::isSuperuser() && RemoteDebug::available();
@@ -94,6 +111,7 @@ class Panel extends PanelNode
             'close'   => $session === null ? '' : $this->href . '?' . RemoteDebug::CLOSE . '=' . $session,
             'signal'  => $session === null ? '' : $this->href . '?' . RemoteDebug::SIGNAL . '=' . $session,
             'pingSeconds' => 30,
+            'layout'  => self::LAYOUT,
         ];
         $centrifuge = (Packages::urls()['systopic/relay'] ?? '') . 'public/js/centrifuge.js';
         include __DIR__ . '/window.tpl.php';

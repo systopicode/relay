@@ -4,7 +4,8 @@
 <?php
 /**
  * The window of one watched browser: the debug tool's own windows (default,
- * ajax, route, time), filled from the hub instead of from this request.
+ * ajax, route, time …), filled from the hub instead of from this request,
+ * docked in tabbed panes (Panel::LAYOUT).
  * Every request of the watched browser starts with a line in `default`
  * (method, url) and ends with one (duration, status, the fatal error) - a
  * start without an end after a minute was killed.
@@ -20,11 +21,12 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 <meta name="robots" content="noindex,nofollow">
 <title>debug · <?= $e($window['label']) ?></title>
 <style>
-	body { margin: 0; background: #f4f4f6; color: #333; font: 13px/1.5 system-ui, sans-serif; }
-	header.remote { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); padding: 2px 12px;
-		background: #fff; border: 1px solid #ccc; border-bottom: 0; border-radius: 8px 8px 0 0; white-space: nowrap; }
-	header.remote .state { color: #0a8f6c; }
-	header.remote .state.bad { color: #b00020; }
+	body { margin: 0; background: #1c1c1c; color: #ccc; font: 13px/1.5 system-ui, sans-serif; }
+	/* under the prompts' grid (sysdebug.layout), which leaves it the bottom 24px */
+	header.remote { position: fixed; left: 0; right: 0; bottom: 0; height: 24px; box-sizing: border-box;
+		padding: 2px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	header.remote .state { color: yellowgreen; }
+	header.remote .state.bad { color: #ff6666; }
 </style>
 <script src="<?= $e($centrifuge) ?>"></script>
 </head>
@@ -51,6 +53,9 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 		return;
 	}
 	var lib = sysdebug.export()[2];
+	// columns of tabbed panes instead of prompts at the edges - Panel::LAYOUT
+	// (a bake older than js/layout.js keeps them at the edges)
+	sysdebug.layout && (sysdebug.layout(cfg.layout).style.bottom = '24px');
 	var config = null;
 	var open = {};   // request id => timer that reports a missing end
 
