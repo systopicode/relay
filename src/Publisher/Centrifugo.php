@@ -29,6 +29,28 @@ final class Centrifugo implements Publisher
     }
 
     /**
+     * Channels that currently have a subscriber. The hub lists only those.
+     *
+     * @return array<string, true>
+     */
+    public function channels(): array
+    {
+        $answer = $this->call('channels', []);
+        $channels = $answer['result']['channels'] ?? $answer['channels'] ?? [];
+        if (!is_array($channels)) {
+            return [];
+        }
+        if (array_is_list($channels)) {
+            return array_fill_keys($channels, true);
+        }
+        $open = [];
+        foreach ($channels as $name => $info) {
+            $open[(string) $name] = true;
+        }
+        return $open;
+    }
+
+    /**
      * @param array<string, mixed> $params
      * @return array<string, mixed>
      */
@@ -41,9 +63,11 @@ final class Centrifugo implements Publisher
             $base = 'http://localhost';
         }
         $curl = curl_init("$base/api/$method");
+        // An empty PHP array encodes as [], and the hub rejects that. Params are an object.
+        $payload = json_encode($params === [] ? new \stdClass() : $params, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         curl_setopt_array($curl, [
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($params, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            CURLOPT_POSTFIELDS     => $payload,
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-API-Key: ' . $this->key],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT_MS => min(300, $this->timeoutMs),

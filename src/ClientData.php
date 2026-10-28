@@ -35,6 +35,7 @@ final class ClientData
         $device = class_exists(Devices::class) ? Devices::current() : null;
         if ($device !== null) {
             $data['device'] = Relay::deviceTopic((int) $device->id);
+            $data['active'] = Relay::activeTopic((int) $device->id);
         }
         // Only after a render: a PUT that ran an action without one would
         // otherwise hand the browser an empty list and end every subscription.

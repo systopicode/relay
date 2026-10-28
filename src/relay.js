@@ -88,6 +88,7 @@
 				client.connect();
 			}
 			relay.followDevice(d.device);
+			relay.followActive(d.active);
 			if (!Array.isArray(d.channels)) {
 				return;   // nothing rendered in that response - keep listening
 			}
@@ -154,6 +155,68 @@
 			deviceSub.subscribe();
 			p('relay: device channel', channel);
 		};
+
+		/**
+		 * Online is the device channel (the page is open). Active is this
+		 * second channel, and only while the tab is visible and someone used
+		 * it in the last five minutes. A hidden or idle tab stays online.
+		 */
+		var activeSub = null;
+		var activeChannel = '';
+		var lastUse = Date.now();
+		var IDLE_MS = 5 * 60 * 1000;
+		var idleTimer = null;
+		var pageActive = () => document.visibilityState === 'visible' && (Date.now() - lastUse) < IDLE_MS;
+		var armIdle = () => {
+			if (idleTimer) {
+				clearTimeout(idleTimer);
+			}
+			idleTimer = setTimeout(() => relay.followActive(activeChannel), Math.max(0, IDLE_MS - (Date.now() - lastUse)) + 50);
+		};
+		relay.followActive = channel => {
+			activeChannel = channel || '';
+			if (!client || activeChannel === '') {
+				return;
+			}
+			var want = pageActive();
+			if (want && activeSub && activeSub.channel === activeChannel) {
+				return;
+			}
+			if (!want && !activeSub) {
+				return;
+			}
+			if (activeSub) {
+				activeSub.unsubscribe();
+				client.removeSubscription(activeSub);
+				activeSub = null;
+			}
+			if (!want) {
+				if (idleTimer) {
+					clearTimeout(idleTimer);
+					idleTimer = null;
+				}
+				p('relay: inactive', activeChannel);
+				return;
+			}
+			activeSub = client.getSubscription(activeChannel) || client.newSubscription(activeChannel);
+			activeSub.on('error', ctx => p('relay: active subscription error', activeChannel, ctx.error));
+			activeSub.subscribe();
+			p('relay: active', activeChannel);
+			armIdle();
+		};
+		var noteUse = () => {
+			lastUse = Date.now();
+			relay.followActive(activeChannel);
+			armIdle();
+		};
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') {
+				lastUse = Date.now();
+			}
+			relay.followActive(activeChannel);
+		});
+		window.addEventListener('pointerdown', noteUse, {passive: true});
+		window.addEventListener('keydown', noteUse);
 
 		/** A channel changed - gather for a moment, then ask once. */
 		relay.heard = channel => {

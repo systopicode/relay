@@ -9,9 +9,9 @@
 #   bash install.sh --uninstall           remove agent, binary, config
 #
 # Options: --version=6.9.7  --port=8000 (browser; API and admin on port+1)
-# --origins=https://a,https://b (first run only; default: https://localhost
-# and every IPv4 address of this Mac). Running it again keeps config and
-# secrets; binary and agent are renewed, the hub is restarted.
+# --origins=https://a,https://b (default: https://localhost, https://dev.local
+# and every IPv4 address of this Mac). A later run keeps the secrets and
+# adds origins that are new; binary and agent are renewed, the hub is restarted.
 set -euo pipefail
 
 VERSION=6.9.7
@@ -180,7 +180,34 @@ if [ "$FIRST" = 1 ]; then
 EOF
 	echo "written: $CONF (new secrets, origins: $ORIGINS)"
 else
-	echo "kept: $CONF (secrets unchanged)"
+	# The laptop's LAN address changes. Add the current ones; secrets stay.
+	ADD=https://localhost,https://dev.local
+	for ip in $(ifconfig | awk '/inet / && $2 != "127.0.0.1" { print $2 }'); do
+		ADD="$ADD,https://$ip"
+	done
+	if [ -n "$ORIGINS" ]; then
+		ADD="$ADD,$ORIGINS"
+	fi
+	python3 - "$CONF" "$ADD" <<'PY'
+import json, os, sys
+path, extra = sys.argv[1], sys.argv[2]
+with open(path) as handle:
+    cfg = json.load(handle)
+origins = cfg.setdefault("client", {}).setdefault("allowed_origins", [])
+seen = set(origins)
+for origin in extra.split(","):
+    origin = origin.strip()
+    if origin and origin not in seen:
+        origins.append(origin)
+        seen.add(origin)
+tmp = path + ".tmp"
+with open(tmp, "w") as handle:
+    json.dump(cfg, handle, indent="\t")
+    handle.write("\n")
+os.chmod(tmp, 0o600)
+os.replace(tmp, path)
+PY
+	echo "kept: $CONF (secrets unchanged, origins include this Mac)"
 fi
 "$BIN" checkconfig -c "$CONF"
 

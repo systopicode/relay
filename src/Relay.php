@@ -46,6 +46,11 @@ final class Relay
     /** @var array<string, array<string, mixed>> channel => message, sent at the end like the changes */
     private static array $messages = [];
 
+    /** @var array<string, true>|null channels with a subscriber, once this request has asked */
+    private static ?array $openChannels = null;
+
+    private static bool $openChannelsAsked = false;
+
     private static bool $flushRegistered = false;
 
     /** afterConnect (autoload.php): the config is read, the database is there. */
@@ -104,6 +109,69 @@ final class Relay
     }
 
     /**
+     * Which of these devices have the page open. Null when the hub is off
+     * or did not answer — last seen is not the same as online.
+     *
+     * @param list<int> $ids
+     * @return list<int>|null
+     */
+    public static function presentDevices(array $ids): ?array
+    {
+        return self::subscribed($ids, self::deviceTopic(...));
+    }
+
+    /**
+     * Which of these devices are being used: the page is visible and someone
+     * touched it in the last few minutes. A hidden or idle tab stays in
+     * presentDevices(). Null when the hub is off or did not answer.
+     *
+     * @param list<int> $ids
+     * @return list<int>|null
+     */
+    public static function activeDevices(array $ids): ?array
+    {
+        return self::subscribed($ids, self::activeTopic(...));
+    }
+
+    /**
+     * @param list<int> $ids
+     * @param callable(int): string $topic
+     * @return list<int>|null
+     */
+    private static function subscribed(array $ids, callable $topic): ?array
+    {
+        $open = self::openChannels();
+        if ($open === null) {
+            return null;
+        }
+        $found = [];
+        foreach ($ids as $id) {
+            $id = (int) $id;
+            if ($id > 0 && isset($open[$topic($id)])) {
+                $found[] = $id;
+            }
+        }
+        return $found;
+    }
+
+    /** @return array<string, true>|null */
+    private static function openChannels(): ?array
+    {
+        if (!self::enabled() || !(self::$publisher instanceof Centrifugo)) {
+            return null;
+        }
+        if (!self::$openChannelsAsked) {
+            self::$openChannelsAsked = true;
+            try {
+                self::$openChannels = self::$publisher->channels();
+            } catch (\Throwable) {
+                self::$openChannels = null;
+            }
+        }
+        return self::$openChannels;
+    }
+
+    /**
      * The channel of one device (Systopic\System\Auth\Devices): what is meant
      * for exactly this browser, app or screen - today "log out" when it is
      * revoked, later the remote control of a screen. An HMAC like topic()
@@ -115,6 +183,19 @@ final class Relay
             (self::$config['plainTopics'] ?? false)
                 ? (string) $deviceId
                 : substr(hash_hmac('sha256', self::prefix() . '|device|' . $deviceId, (string) self::$config['secret']), 0, 24)
+        );
+    }
+
+    /**
+     * Same namespace as deviceTopic(), so the hub already allows it. The
+     * browser subscribes only while the tab is visible and in use.
+     */
+    public static function activeTopic(int $deviceId): string
+    {
+        return 'device:' . self::prefix() . '/' . (
+            (self::$config['plainTopics'] ?? false)
+                ? 'live/' . $deviceId
+                : substr(hash_hmac('sha256', self::prefix() . '|live|' . $deviceId, (string) self::$config['secret']), 0, 24)
         );
     }
 
