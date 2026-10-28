@@ -265,9 +265,11 @@ final class Relay
 
     /**
      * Out to the hub, once per request, one message per channel however many
-     * commits there were. After the response where the SAPI allows it; never
-     * longer than the publisher's timeout and never with an exception — the
-     * data is in the database either way.
+     * commits there were. At the end of the request, never longer than the
+     * publisher's timeout and never with an exception — the data is in the
+     * database either way. The FastCGI request stays open until this returns:
+     * finishing it early here made the next request on that worker come back
+     * empty.
      */
     public static function flush(): void
     {
@@ -278,9 +280,10 @@ final class Relay
         $messages = self::$messages;
         self::$changed = [];
         self::$messages = [];
-        if (function_exists('fastcgi_finish_request')) {
-            @fastcgi_finish_request();
-        }
+        // Not fastcgi_finish_request(): called from this shutdown it closes
+        // the FastCGI stream, and the next request on that worker comes back
+        // with no headers (Apache 500, empty body). The publish is bounded
+        // by the hub timeout.
         try {
             if ($channels !== []) {
                 self::$publisher->broadcast($channels, ['op' => 'change'] + self::origin());
