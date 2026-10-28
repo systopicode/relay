@@ -17,10 +17,14 @@ use Systopic\System\Auth\Session;
  * output (systopic\debug\stream) to the session's channel instead of into its
  * page, and the window shows it. The page's own scripts print there too: their
  * prompts come back as a POST to the page's url (?sysdebugPush), which boot()
- * answers before anything renders - the js prompt and the client layer tree.
- * Hovering that tree in the window outlines the layer in the watched page:
- * the window posts the node's mark to the panel, the page hears it on
- * markChannel().
+ * answers before anything renders.
+ *
+ * The way back is clientChannel(), one per browser, which every page hears
+ * while debug is on (ClientData): the window says 'watch' once it listens -
+ * the page takes its prompts out and sends them over - and 'unwatch' when it
+ * closes, the page builds them again. Hovering the client layer tree in the
+ * window outlines that layer in the page ('show', 'hide'). The window sends
+ * all of it through the panel (signal()).
  *
  * The channel `debug:<prefix>/<session>` is in a namespace clients cannot
  * subscribe to on their own: the window gets a subscription token, and only
@@ -47,10 +51,10 @@ final class RemoteDebug
     public const WATCH = 'debugWatch';
     public const PING = 'debugPing';
     public const CLOSE = 'debugClose';
-    public const MARK = 'debugMark';
+    public const SIGNAL = 'debugSignal';
 
-    /** the session this request streams to - NULL when none watches it */
-    private static ?string $streamed = null;
+    /** what the window may tell the page through signal() - 'unwatch' comes from close() */
+    private const SIGNALS = ['watch', 'show', 'hide'];
 
     /** Every request: who this is, and is a window watching? */
     public static function boot(): void
@@ -66,17 +70,10 @@ final class RemoteDebug
             \systopic\debug\sysdebug::streamPush($channel === null ? null : static fn(array $message) => Relay::publishNow($channel, $message));
         }
         $session = self::touch(self::clientId());
-        if ($session !== null && !isset($_GET[self::WATCH]) && !isset($_GET[self::PING]) && !isset($_GET[self::CLOSE]) && !isset($_GET[self::MARK])) {
-            self::$streamed = $session;
+        if ($session !== null && !isset($_GET[self::WATCH]) && !isset($_GET[self::PING]) && !isset($_GET[self::CLOSE]) && !isset($_GET[self::SIGNAL])) {
             $channel = self::channel($session);
             \systopic\debug\sysdebug::stream(static fn(array $message) => Relay::publishNow($channel, $message));
         }
-    }
-
-    /** the session this request streams to (ClientData hands its page the marks channel) */
-    public static function streamed(): ?string
-    {
-        return self::$streamed;
     }
 
     /** The hub is there and the debug tool is loaded, on and new enough to stream, page scripts included (since 2026-10-28). */
@@ -114,24 +111,32 @@ final class RemoteDebug
     }
 
     /**
-     * The way back: the window hovers a node of the client layer tree, the
-     * watched page outlines that layer (tools/debug js/remote.js). Apart from
-     * the session's channel - the watched page may read this one, never the
-     * debug output of its requests.
+     * The way back to the browser (tools/debug js/remote.js): watch, unwatch,
+     * show, hide. Apart from the session's channel - the browser may read this
+     * one, never the debug output of its requests.
      */
-    public static function markChannel(string $session): string
+    public static function clientChannel(string $client): string
     {
-        return self::channel($session) . '/marks';
+        return 'debug:' . Relay::prefix() . '/client/' . $client;
     }
 
-    /** The window hovers mark $mark ('show') or leaves it ('hide'). FALSE when the session is gone. */
-    public static function mark(string $session, string $op, int $mark): bool
+    /**
+     * The window tells its browser: 'watch' (it listens now - send everything),
+     * 'show' mark $mark of the client layer tree, 'hide'. FALSE when the
+     * session is gone.
+     */
+    public static function signal(string $session, string $op, int $mark = -1): bool
     {
         $entry = self::read()['sessions'][$session] ?? null;
-        if ($entry === null || (int) ($entry['expires'] ?? 0) < time() || !in_array($op, ['show', 'hide'], true)) {
+        if ($entry === null || (int) ($entry['expires'] ?? 0) < time() || !in_array($op, self::SIGNALS, true)) {
             return false;
         }
-        Relay::publishNow(self::markChannel($session), ['op' => $op, 'mark' => $mark]);
+        $message = match ($op) {
+            'watch' => ['op' => $op, 'push' => \systopic\debug\stream::PUSH],
+            'show'  => ['op' => $op, 'mark' => $mark],
+            default => ['op' => $op],
+        };
+        Relay::publishNow(self::clientChannel((string) $entry['client']), $message);
         return true;
     }
 
@@ -169,12 +174,17 @@ final class RemoteDebug
         return $alive;
     }
 
-    /** The window closed: the browser shows its output in its own page again. */
+    /** The window closed: the browser shows its output in its own page again - the open page at once. */
     public static function close(string $session): void
     {
-        self::update(static function (array &$data) use ($session): void {
+        $client = null;
+        self::update(static function (array &$data) use ($session, &$client): void {
+            $client = $data['sessions'][$session]['client'] ?? null;
             unset($data['sessions'][$session]);
         });
+        if (is_string($client)) {
+            Relay::publishNow(self::clientChannel($client), ['op' => 'unwatch']);
+        }
     }
 
     // ----------------------------------------------------------------- list

@@ -97,7 +97,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 		markBusy = true;
 		markSent = wish;
 		var op = wish === 'hide' ? 'hide' : 'show';
-		fetch(cfg.mark + '&op=' + op + '&n=' + (op === 'show' ? wish : -1), {credentials: 'same-origin', cache: 'no-store'})
+		fetch(cfg.signal + '&op=' + op + '&n=' + (op === 'show' ? wish : -1), {credentials: 'same-origin', cache: 'no-store'})
 			.catch(() => say('server not reachable', true))
 			.finally(() => {
 				markBusy = false;
@@ -114,7 +114,14 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 	client.on('disconnected', ctx => say('disconnected: ' + ctx.reason, true));
 	client.on('error', ctx => say('hub error: ' + (ctx.error && ctx.error.message), true));
 	var sub = client.newSubscription(cfg.channel, {token: cfg.subToken});
-	sub.on('subscribed', () => say('waiting for its next request'));
+	// listening now: an open page of that browser hands over the prompts it
+	// shows (and takes them back when this window closes) - also after a
+	// reconnect, then it sends everything again
+	sub.on('subscribed', () => {
+		say('waiting for its next request');
+		fetch(cfg.signal + '&op=watch', {credentials: 'same-origin', cache: 'no-store'})
+			.catch(() => say('server not reachable', true));
+	});
 	sub.on('error', ctx => say('subscription error: ' + (ctx.error && ctx.error.message), true));
 	sub.on('publication', ctx => {
 		say('live');

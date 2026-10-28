@@ -89,7 +89,7 @@
 			}
 			relay.followDevice(d.device);
 			relay.followActive(d.active);
-			relay.followDebugMarks(d.debugMarks);
+			relay.followDebug(d.debugClient);
 			if (!Array.isArray(d.channels)) {
 				return;   // nothing rendered in that response - keep listening
 			}
@@ -158,24 +158,26 @@
 		};
 
 		/**
-		 * A window elsewhere watches this browser's debug output (RemoteDebug)
-		 * and hovers its client layer tree: the debug tool outlines that layer
-		 * here (tools/debug js/remote.js). Only with a subscription token for
-		 * exactly this channel - the debug namespace is closed otherwise.
+		 * This browser's debug channel (RemoteDebug), while debug is on. A
+		 * window elsewhere says through it that it watches (the debug tool
+		 * moves its prompts over), that it closed (they come back), and which
+		 * layer of the client tree it hovers (outlined here) - see tools/debug
+		 * js/remote.js. Only with a subscription token for exactly this
+		 * channel - the debug namespace is closed otherwise.
 		 */
-		var marksSub = null;
-		relay.followDebugMarks = marks => {
-			if (!marks || !marks.channel || (marksSub && marksSub.channel === marks.channel)) {
+		var debugSub = null;
+		relay.followDebug = debug => {
+			if (!debug || !debug.channel || (debugSub && debugSub.channel === debug.channel)) {
 				return;
 			}
-			if (marksSub) {
-				marksSub.unsubscribe();
-				client.removeSubscription(marksSub);
+			if (debugSub) {
+				debugSub.unsubscribe();
+				client.removeSubscription(debugSub);
 			}
-			marksSub = client.getSubscription(marks.channel) || client.newSubscription(marks.channel, {token: marks.token});
-			marksSub.on('publication', ctx => window.sysdebug && sysdebug.remoteMark && sysdebug.remoteMark(ctx.data));
-			marksSub.on('error', ctx => p('relay: debug marks subscription error', marks.channel, ctx.error));
-			marksSub.subscribe();
+			debugSub = client.getSubscription(debug.channel) || client.newSubscription(debug.channel, {token: debug.token});
+			debugSub.on('publication', ctx => window.sysdebug && sysdebug.remoteSignal && sysdebug.remoteSignal(ctx.data));
+			debugSub.on('error', ctx => p('relay: debug subscription error', debug.channel, ctx.error));
+			debugSub.subscribe();
 		};
 
 		/**

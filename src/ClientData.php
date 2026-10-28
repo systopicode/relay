@@ -37,12 +37,12 @@ final class ClientData
             $data['device'] = Relay::deviceTopic((int) $device->id);
             $data['active'] = Relay::activeTopic((int) $device->id);
         }
-        // A window watches this browser's debug output (RemoteDebug): hovering
-        // its client layer tree outlines the layers here.
-        $watched = RemoteDebug::streamed();
-        if ($watched !== null) {
-            $channel = RemoteDebug::markChannel($watched);
-            $data['debugMarks'] = [
+        // Debug is on: a debug window (RemoteDebug) can take this browser's
+        // prompts over and hand them back, and outline its layers - live,
+        // also on a page that was open before the window.
+        if (RemoteDebug::available()) {
+            $channel = RemoteDebug::clientChannel(RemoteDebug::clientId());
+            $data['debugClient'] = [
                 'channel' => $channel,
                 'token' => Token::subscription(self::subject(), $channel, (int) Relay::config('tokenTtl', 43200), (string) Relay::config('secret')),
             ];
