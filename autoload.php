@@ -21,3 +21,6 @@ Packages::addPanels('systopic/relay', 'Systopic\Relay\Panels');
 
 // after the config and the database: observer, script, client data
 Hooks::on('afterConnect', static fn() => \Systopic\Relay\Relay::boot());
+
+// Relay supplies its own task; system does not depend on the optional hub package.
+\Systopic\System\Maintenance\Runner::register('remote-debug', 'Debug sessions and browsers', 'Browser records after 24 hours without activity, plus expired debug sessions.', static fn(bool $preview, int $limit) => \Systopic\Relay\RemoteDebug::cleanup($preview, $limit));

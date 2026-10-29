@@ -70,6 +70,20 @@
 		/** After every response: connect once, then follow the channel list. */
 		relay.sync = () => {
 			var d = data();
+            if (d.enabled === false) {
+                clearTimeout(timer);
+                clearTimeout(idleTimer);
+                timer = null;
+                pending.clear();
+                waitingVisible = false;
+                if (client) client.disconnect();
+                client = null;
+                subs.clear();
+                deviceSub = null;
+                activeSub = null;
+                activeChannel = null;
+                return;
+            }
 			if (!d.client || !d.token || typeof Centrifuge === 'undefined') {
 				return;
 			}
@@ -205,6 +219,7 @@
 			armIdle();
 		};
 		var noteUse = () => {
+            if (data().enabled === false) return;
 			lastUse = Date.now();
 			relay.followActive(activeChannel);
 			armIdle();
@@ -220,6 +235,7 @@
 
 		/** A channel changed - gather for a moment, then ask once. */
 		relay.heard = channel => {
+            if (data().enabled === false) return;
 			pending.add(channel);
 			if (!timer) {
 				timer = setTimeout(() => relay.refresh(false), GATHER_MS);
@@ -270,6 +286,7 @@
 		 * document.hidden has not caught up yet.
 		 */
 		relay.refresh = force => {
+            if (data().enabled === false) return;
 			if (timer) {
 				clearTimeout(timer);
 				timer = null;
@@ -297,7 +314,7 @@
 			p('relay: refresh', sys.http.renderedUrl(), channels);
 			var answered = false;
 			var watchdog = setTimeout(() => {
-				if (answered) {
+				if (answered || data().enabled === false) {
 					return;
 				}
 				channels.forEach(channel => pending.add(channel));

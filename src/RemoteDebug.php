@@ -225,6 +225,37 @@ final class RemoteDebug
         return null;
     }
 
+    /** Bounded maintenance of existing expiry rules; no debug connection required. */
+    public static function cleanup(bool $preview, int $limit = 100): array
+    {
+        $file = self::file();
+        if (!is_file($file)) return ['count' => 0, 'more' => false];
+        if (filesize($file) > 2097152) throw new \RuntimeException('Diagnostic registry requires manual review.');
+        $handle = fopen($file, 'r+');
+        if (!$handle) throw new \RuntimeException('Diagnostic registry is not writable.');
+        try {
+            if (!flock($handle, LOCK_EX | LOCK_NB)) throw new \RuntimeException('Diagnostic registry is busy.');
+            $data = json_decode((string) stream_get_contents($handle), true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($data) || !is_array($data['clients'] ?? null) || !is_array($data['sessions'] ?? null)) throw new \RuntimeException('Invalid diagnostic registry.');
+            $count = 0; $more = false; $now = time();
+            foreach (['clients', 'sessions'] as $section) {
+                foreach ($data[$section] as $id => $row) {
+                    $expired = $section === 'clients' ? $now - (int) ($row['seen'] ?? $now) > self::CLIENT_TTL : (int) ($row['expires'] ?? PHP_INT_MAX) < $now;
+                    if (!$expired) continue;
+                    if ($count >= $limit) { $more = true; break 2; }
+                    unset($data[$section][$id]);
+                    $count++;
+                }
+            }
+            if (!$preview && $count) {
+                $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+                rewind($handle);
+                if (fwrite($handle, $json) !== strlen($json) || !ftruncate($handle, strlen($json)) || !fflush($handle)) throw new \RuntimeException('Diagnostic registry could not be saved.');
+            }
+            return compact('count', 'more');
+        } finally { flock($handle, LOCK_UN); fclose($handle); }
+    }
+
     private static function file(): string
     {
         return \fs::toNative((string) \fs::$projectRoot . 'var/debug/remote.json');

@@ -60,6 +60,11 @@ final class Relay
         if (!is_array($config) || ($config['api'] ?? '') === '' || ($config['secret'] ?? '') === '') {
             return;
         }
+        if (($config['enabled'] ?? true) === false) {
+            // Existing browser instances receive the disabled state on their next request.
+            ClientData::register();
+            return;
+        }
         self::$config = $config;
         self::$publisher = new Centrifugo((string) $config['api'], (string) ($config['apiKey'] ?? ''));
         Scope::addObserver(new Observer());

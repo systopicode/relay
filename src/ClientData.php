@@ -26,7 +26,15 @@ final class ClientData
 
     public static function clientData_export(): object
     {
+        if (!Relay::enabled()) {
+            return (object) [
+                'route' => 'singletons.relay',
+                'data' => ['enabled' => false],
+                'onLibReady' => ['sys.relay.sync'],
+            ];
+        }
         $data = [
+            'enabled' => true,
             'client' => (string) Relay::config('client', '/connection/'),
             'token'  => Token::connection(self::subject(), (int) Relay::config('tokenTtl', 43200), (string) Relay::config('secret')),
         ];
