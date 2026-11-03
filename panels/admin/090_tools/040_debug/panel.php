@@ -8,7 +8,6 @@ use Systopic\Relay\ClientData;
 use Systopic\Relay\Relay;
 use Systopic\Relay\RemoteDebug;
 use Systopic\Relay\Token;
-use Systopic\System\Auth\Session;
 use Systopic\System\Panels\PanelNode;
 use Systopic\System\Sys\Packages;
 
@@ -44,11 +43,6 @@ class Panel extends PanelNode
             ['tabs' => ['ajax' => 'ajax']],
         ]],
     ];
-
-    public function buildGranted()
-    {
-        return Session::isSuperuser();
-    }
 
     public function onLoadSelected(): void
     {
