@@ -27,11 +27,12 @@ class Panel extends PanelNode
 
     public function buildGranted()
     {
-        return Session::isSuperuser() && RemoteDebug::available();
+        return Session::isSuperuser();
     }
 
     public function onLoadSelected(): void
     {
+        if (!RemoteDebug::available()) return;
         $ping = (string) \http::get(RemoteDebug::PING, '');
         if ($ping !== '') {
             $this->answer(['alive' => RemoteDebug::extend($ping)]);

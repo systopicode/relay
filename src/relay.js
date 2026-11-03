@@ -5,12 +5,12 @@
  * The server hands over, with every response (Relay\ClientData): where the hub
  * is, a token, the channels of what this window shows. sync() runs after each
  * response and subscribes to exactly those. A message on one of them means
- * "data under this window changed". The channels wait for the next request
- * this window sends anyway and go along with it (header `X-Changed`); when
- * none comes within a moment, refresh() sends a PUT to the url on screen. The
- * server re-renders the layers that read from them - in the same render as
- * whatever else the request asked for - and the diff brings just those
- * (Dom\Dependencies). No data travels through the hub.
+ * "data under this window changed". Signals are gathered briefly, then a
+ * dedicated PUT refreshes the url on screen. Action-only requests cannot
+ * consume these invalidations because they may render nothing. The server
+ * re-renders dependent layers (Dom\Dependencies), and the diff ships those.
+ * Failed refreshes return their channels to the queue. No content travels
+ * through the hub.
  *
  * Signals of this window's own writes are skipped: the answer to the write
  * already re-rendered what it touched (origin, see below). The focused
@@ -37,7 +37,7 @@
 		var pending = new Set();   // channels heard of, not yet asked for
 		var timer = null;
 		var waitingVisible = false;
-		var GATHER_MS = 300;
+		var GATHER_MS = 150;
 
 		/**
 		 * This window. Every request says it comes from here; the server puts
@@ -49,21 +49,11 @@
 		relay.origin = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
 			: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 
-		/**
-		 * Whatever request goes out next carries what changed (header
-		 * `X-Changed`): a click, a save, a navigation - the server renders it
-		 * in the same go. Only when nothing goes out does refresh() ask on its
-		 * own. So several signals and a request of the user end up in ONE render.
-		 */
-		sys.core.server.addHeaders(method => {
-			var headers = {'X-Relay-Origin': relay.origin};
-			if (pending.size) {
-				headers['X-Changed'] = Array.from(pending).join(',');
-				p('relay: changes go along with the ' + method, Array.from(pending));
-				pending.clear();
-			}
-			return headers;
-		});
+
+		// Only the dedicated refresh consumes invalidations. Action-only calls
+        // (presence, diagnostics, etc.) may render nothing, so piggybacking
+        // on them can silently lose a live update.
+        sys.core.server.addHeaders(() => ({'X-Relay-Origin': relay.origin}));
 
 		var data = () => (sys.singletons.relay && sys.singletons.relay.__data) || {};
 
@@ -269,19 +259,33 @@
 			window.addEventListener('focus', wake, {once: true});
 		};
 		var poke = () => {
-			if (pending.size) {
-				relay.refresh(true);
+			if (pending.size && !timer) {
+                // Let the current click finish opening its toolbar/dialog first.
+				timer = setTimeout(() => relay.refresh(true), GATHER_MS);
 			}
 		};
 		window.addEventListener('touchend', poke, {passive: true});
 		window.addEventListener('pointerup', poke, {passive: true});
 		window.addEventListener('scroll', poke, true);
+        document.addEventListener('focusout', poke);
+        document.addEventListener('selectionchange', poke);
+        // Closing an ephemeral dialog need not send a request. Resume the same
+        // pending batch when its existing DOM state changes; never poll-render.
+        if (typeof MutationObserver !== 'undefined' && document.body) {
+            new MutationObserver(poke).observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['class','hidden']});
+        }
+        var interacting = () => {
+            if (document.body?.matches('.dragging,.widgetDragging,.editorMediaDrop')) return true;
+            if (Array.from(document.querySelectorAll('.cmslightbox,.HTMLeditorMenu')).some(el => !el.hidden && el.getClientRects().length)) return true;
+            if (document.activeElement?.matches('input,textarea,select,[contenteditable]:not([contenteditable="false"])')) return true;
+            var selection = window.getSelection?.();
+            return !!selection && !selection.isCollapsed;
+        };
 
 		/**
-		 * Nothing took the changes along: one PUT to the url on screen.
-		 * The header carries them, and so does the body (`changed`) — the
-		 * server reads both. Not while a request is on its way: its answer
-		 * may be what was missing, and the next request takes along what is left.
+		 * Refresh pending changes with one PUT to the url on screen.
+         * The body carries `changed`. Wait for an existing request to finish
+         * so live rendering cannot overtake a save or navigation.
 		 * force: the page is being looked at (tap, scroll, pageshow) even if
 		 * document.hidden has not caught up yet.
 		 */
@@ -292,8 +296,12 @@
 				timer = null;
 			}
 			if (!pending.size) {
-				return;   // a request took them along meanwhile
+				return;   // no unprocessed invalidations
 			}
+            // Keep remote changes queued while someone is using the current
+            // DOM. Rebuilding it here closes link dialogs and breaks selections
+            // and media dragging. Blur/close/drop resumes delivery above.
+            if (interacting()) return;
 			var visible = force === true || document.visibilityState === 'visible' || document.hasFocus();
 			if (!visible) {
 				waitingVisible = true;
@@ -311,22 +319,30 @@
 				return;
 			}
 			var channels = Array.from(pending);
+            pending.clear();
 			p('relay: refresh', sys.http.renderedUrl(), channels);
 			var answered = false;
-			var watchdog = setTimeout(() => {
-				if (answered || data().enabled === false) {
-					return;
-				}
-				channels.forEach(channel => pending.add(channel));
-				p('relay: refresh failed, will retry', channels);
-				if (!timer) {
-					timer = setTimeout(() => relay.refresh(true), GATHER_MS);
-				}
-			}, 5000);
-			sys.core.server.sendCall({changed: channels}, sys.http.renderedUrl()).done(() => {
-				answered = true;
-				clearTimeout(watchdog);
-			});
+            var retry = () => {
+                if (answered) return;
+                answered = true;
+                clearTimeout(watchdog);
+                if (data().enabled === false) return;
+                channels.forEach(channel => pending.add(channel));
+                if (!timer) timer = setTimeout(() => relay.refresh(true), GATHER_MS);
+            };
+            var watchdog = setTimeout(retry, 10000);
+            var refreshCall = new sys.core.server.call({method: 'put', changed: channels});
+            refreshCall.background = true;
+            var request = refreshCall.send(sys.http.renderedUrl());
+            // Older open clients may register done() without returning the hooks.
+            // Register separately; clients without fail() retain the watchdog retry.
+            request.done(() => {
+                if (answered) return;
+                answered = true;
+                clearTimeout(watchdog);
+                if (pending.size && !timer) timer = setTimeout(() => relay.refresh(false), GATHER_MS);
+            });
+            if (typeof request.fail === 'function') request.fail(retry);
 		};
 	});
 })();

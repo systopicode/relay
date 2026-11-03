@@ -12,6 +12,13 @@ use Systopic\System\Settings\CentrifugoHub;
 
 $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 $clients = $this->clients();
+$userLabels = [];
+foreach ($clients as $client) {
+    $id = (int) ($client['user'] ?? 0);
+    if (!$id || isset($userLabels[$id])) continue;
+    $user = \Systopic\System\Queries\UserAdmin\UserAdmin::of(\Systopic\Db\Scope::default())->user($id);
+    $userLabels[$id] = $user ? (trim((string) $user->fullname) ?: (trim((string) $user->name) ?: (trim((string) $user->email) ?: (string) $id))) : (string) $id;
+}
 $own = (string) ($_COOKIE[RemoteDebug::COOKIE] ?? '');
 $ago = static function (int $seen): string {
 	$seconds = max(0, time() - $seen);
@@ -28,6 +35,9 @@ if ($env !== null) {
 }
 ?>
 <h1>Remote debug</h1>
+<?php if (!RemoteDebug::available()) { ?>
+<div class="cms message is-stay"><div class="warning"><p>Remote debugging is currently unavailable. Enable project live updates and PHP debugging in <a href="<?= $e($envHref) ?>">Environment</a> to use it.</p></div></div>
+<?php return; } ?>
 <p class="tagsHint">
 	Browsers seen in the last <?= intdiv(RemoteDebug::LIST_SECONDS, 60) ?> minutes. The debug window shows the debug output of one of them
 	live - from its next request on, its own page only says "debug → remote". Closing the window ends that.
@@ -38,13 +48,13 @@ if ($env !== null) {
 <section class="widget is-list">
 	<header>
 		<h2>Browsers</h2>
-		<a class="button" data-on_click="refreshList" title="Refresh"><i class="fa-regular fa-arrows-rotate"></i><span>Refresh</span></a>
+		<a class="button" data-on_click="refreshList" title="Refresh"><i class="cmsIcon cmsIcon-arrows-rotate"></i><span>Refresh</span></a>
 	</header>
 	<?php if ($clients === []): ?>
 		<main><p>No browser seen yet.</p></main>
 	<?php else: ?>
 		<div class="tableScroll">
-			<table>
+			<table class="remoteDebugClients">
 				<thead>
 					<tr><th>Device</th><th>IP</th><th>User</th><th>Last request</th><th>Seen</th><th></th></tr>
 				</thead>
@@ -56,14 +66,14 @@ if ($env !== null) {
 								<?= $client['id'] === $own ? ' <em>(this browser)</em>' : '' ?>
 							</td>
 							<td><?= $e($client['ip']) ?></td>
-							<td><?= $client['user'] === null ? '–' : (int) $client['user'] ?></td>
+							<td><?= $client['user'] === null ? '–' : $e($userLabels[(int) $client['user']] ?? $client['user']) ?></td>
 							<td><?= $e($client['url']) ?></td>
 							<td><?= $e($ago((int) $client['seen'])) ?></td>
 							<td class="icons">
 								<ul>
 									<li>
-										<a class="button" target="_blank" rel="noopener" href="<?= $e($this->windowHref($client['id'])) ?>">
-											<i class="fa-regular fa-arrow-up-right-from-square"></i><span><?= $client['session'] === null ? 'Debug window' : 'Watched – new window' ?></span>
+										<a class="button icononly" title="Open remote debugging" aria-label="Open remote debugging" target="_blank" rel="noopener" href="<?= $e($this->windowHref($client['id'])) ?>">
+											<i class="cmsIcon cmsIcon-laptop"></i>
 										</a>
 									</li>
 								</ul>
