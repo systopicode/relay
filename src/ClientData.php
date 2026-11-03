@@ -45,6 +45,16 @@ final class ClientData
             $data['device'] = Relay::deviceTopic((int) $device->id);
             $data['active'] = Relay::activeTopic((int) $device->id);
         }
+        // Debug is on: a debug window (RemoteDebug) can take this browser's
+        // prompts over and hand them back, and outline its layers - live,
+        // also on a page that was open before the window.
+        if (RemoteDebug::available()) {
+            $channel = RemoteDebug::clientChannel(RemoteDebug::clientId());
+            $data['debugClient'] = [
+                'channel' => $channel,
+                'token' => Token::subscription(self::subject(), $channel, (int) Relay::config('tokenTtl', 43200), (string) Relay::config('secret')),
+            ];
+        }
         // Only after a render: a PUT that ran an action without one would
         // otherwise hand the browser an empty list and end every subscription.
         if (Dependencies::rendered()) {

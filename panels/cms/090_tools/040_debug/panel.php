@@ -19,11 +19,31 @@ use Systopic\System\Sys\Packages;
  * The window is no panel: `?debugWatch=<client>` answers with a page of its
  * own - the debug tool's scripts and styles and a connection to the hub - and
  * so do its pings and its goodbye. All three end the request before the CMS
- * renders anything.
+ * renders anything. So does `?debugSignal=<session>&op=&n=`: what the window
+ * tells its browser - it listens now ('watch'), it hovers a node of the client
+ * layer tree ('show', 'hide').
  */
 class Panel extends PanelNode
 {
     public $icon = 'fa-regular fa-bug';
+
+    /**
+     * How the window lays out the prompts (tools/debug js/layout.js): columns
+     * with w %, rows with h %, without either they share the rest. A row's
+     * tabs: prompt name => label. A prompt not named here lands in the last row.
+     */
+    public const LAYOUT = [
+        ['w' => 60, 'rows' => [
+            ['h' => 20, 'tabs' => ['time' => 'time', 'route' => 'route']],
+            ['h' => 50, 'tabs' => ['domLayersServer' => 'serverRender','panelTreeDebug' => 'panelTreeDebug']],
+            ['tabs' => ['default' => 'php']],
+        ]],
+        ['rows' => [
+            ['h' => 20, 'tabs' => ['js' => 'js']],
+            ['h' => 50, 'tabs' => ['domLayersClient' => 'domLayersClient']],
+            ['tabs' => ['ajax' => 'ajax']],
+        ]],
+    ];
 
     public function buildGranted()
     {
@@ -36,6 +56,10 @@ class Panel extends PanelNode
         $ping = (string) \http::get(RemoteDebug::PING, '');
         if ($ping !== '') {
             $this->answer(['alive' => RemoteDebug::extend($ping)]);
+        }
+        $signal = (string) \http::get(RemoteDebug::SIGNAL, '');
+        if ($signal !== '') {
+            $this->answer(['alive' => RemoteDebug::signal($signal, (string) \http::get('op', ''), (int) \http::get('n', -1))]);
         }
         $close = (string) \http::get(RemoteDebug::CLOSE, '');
         if ($close !== '') {
@@ -87,7 +111,9 @@ class Panel extends PanelNode
             'subToken' => $session === null ? '' : Token::subscription($subject, RemoteDebug::channel($session), $ttl, $secret),
             'ping'    => $session === null ? '' : $this->href . '?' . RemoteDebug::PING . '=' . $session,
             'close'   => $session === null ? '' : $this->href . '?' . RemoteDebug::CLOSE . '=' . $session,
+            'signal'  => $session === null ? '' : $this->href . '?' . RemoteDebug::SIGNAL . '=' . $session,
             'pingSeconds' => 30,
+            'layout'  => self::LAYOUT,
         ];
         $centrifuge = (Packages::urls()['systopic/relay'] ?? '') . 'public/js/centrifuge.js';
         include __DIR__ . '/window.tpl.php';

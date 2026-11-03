@@ -8,14 +8,23 @@ use Systopic\System\Auth\Session;
 
 /**
  * The debug output of one browser, live in a window on another machine - a
- * phone's requests read at the desk (packages/tools/.cursor/plans/debug-remote.plan.md).
+ * phone's requests read at the desk (packages/tools/.cursor/docs/debug-remote.md).
  *
  * Every browser on a stage with debug on gets an id of its own (cookie
  * `sysdebug_client`, before any login, also on the screen page) and lands in
  * the list of `cms/tools/debug`, which opens a window for it. That window is a
  * session: while it lives, every request of that browser streams its debug
  * output (systopic\debug\stream) to the session's channel instead of into its
- * page, and the window shows it.
+ * page, and the window shows it. The page's own scripts print there too: their
+ * prompts come back as a POST to the page's url (?sysdebugPush), which boot()
+ * answers before anything renders.
+ *
+ * The way back is clientChannel(), one per browser, which every page hears
+ * while debug is on (ClientData): the window says 'watch' once it listens -
+ * the page takes its prompts out and sends them over - and 'unwatch' when it
+ * closes, the page builds them again. Hovering the client layer tree in the
+ * window outlines that layer in the page ('show', 'hide'). The window sends
+ * all of it through the panel (signal()).
  *
  * The channel `debug:<prefix>/<session>` is in a namespace clients cannot
  * subscribe to on their own: the window gets a subscription token, and only
@@ -42,6 +51,10 @@ final class RemoteDebug
     public const WATCH = 'debugWatch';
     public const PING = 'debugPing';
     public const CLOSE = 'debugClose';
+    public const SIGNAL = 'debugSignal';
+
+    /** what the window may tell the page through signal() - 'unwatch' comes from close() */
+    private const SIGNALS = ['watch', 'show', 'hide'];
 
     /** Every request: who this is, and is a window watching? */
     public static function boot(): void
@@ -49,18 +62,26 @@ final class RemoteDebug
         if (PHP_SAPI === 'cli' || !self::available()) {
             return;
         }
+        // what the scripts of a watched page printed (tools/debug js/remote.js) -
+        // never a page, and not a visit: the list keeps the page's url
+        if (isset($_GET[\systopic\debug\stream::PUSH])) {
+            $session = self::session(self::read(), self::clientId());
+            $channel = $session === null ? null : self::channel($session);
+            \systopic\debug\sysdebug::streamPush($channel === null ? null : static fn(array $message) => Relay::publishNow($channel, $message));
+        }
         $session = self::touch(self::clientId());
-        if ($session !== null && !isset($_GET[self::WATCH]) && !isset($_GET[self::PING]) && !isset($_GET[self::CLOSE])) {
+        if ($session !== null && !isset($_GET[self::WATCH]) && !isset($_GET[self::PING]) && !isset($_GET[self::CLOSE]) && !isset($_GET[self::SIGNAL])) {
             $channel = self::channel($session);
             \systopic\debug\sysdebug::stream(static fn(array $message) => Relay::publishNow($channel, $message));
         }
     }
 
-    /** The hub is there and the debug tool is loaded and on. */
+    /** The hub is there and the debug tool is loaded, on and new enough to stream, page scripts included (since 2026-10-28). */
     public static function available(): bool
     {
         return Relay::enabled()
             && class_exists(\systopic\debug\sysdebug::class, false)
+            && method_exists(\systopic\debug\sysdebug::class, 'streamPush')
             && function_exists('DEBUG') && DEBUG();
     }
 
@@ -87,6 +108,36 @@ final class RemoteDebug
     public static function channel(string $session): string
     {
         return 'debug:' . Relay::prefix() . '/' . $session;
+    }
+
+    /**
+     * The way back to the browser (tools/debug js/remote.js): watch, unwatch,
+     * show, hide. Apart from the session's channel - the browser may read this
+     * one, never the debug output of its requests.
+     */
+    public static function clientChannel(string $client): string
+    {
+        return 'debug:' . Relay::prefix() . '/client/' . $client;
+    }
+
+    /**
+     * The window tells its browser: 'watch' (it listens now - send everything),
+     * 'show' mark $mark of the client layer tree, 'hide'. FALSE when the
+     * session is gone.
+     */
+    public static function signal(string $session, string $op, int $mark = -1): bool
+    {
+        $entry = self::read()['sessions'][$session] ?? null;
+        if ($entry === null || (int) ($entry['expires'] ?? 0) < time() || !in_array($op, self::SIGNALS, true)) {
+            return false;
+        }
+        $message = match ($op) {
+            'watch' => ['op' => $op, 'push' => \systopic\debug\stream::PUSH],
+            'show'  => ['op' => $op, 'mark' => $mark],
+            default => ['op' => $op],
+        };
+        Relay::publishNow(self::clientChannel((string) $entry['client']), $message);
+        return true;
     }
 
     // ------------------------------------------------------------- sessions
@@ -123,12 +174,17 @@ final class RemoteDebug
         return $alive;
     }
 
-    /** The window closed: the browser shows its output in its own page again. */
+    /** The window closed: the browser shows its output in its own page again - the open page at once. */
     public static function close(string $session): void
     {
-        self::update(static function (array &$data) use ($session): void {
+        $client = null;
+        self::update(static function (array &$data) use ($session, &$client): void {
+            $client = $data['sessions'][$session]['client'] ?? null;
             unset($data['sessions'][$session]);
         });
+        if (is_string($client)) {
+            Relay::publishNow(self::clientChannel($client), ['op' => 'unwatch']);
+        }
     }
 
     // ----------------------------------------------------------------- list
@@ -217,8 +273,14 @@ final class RemoteDebug
                 }
             });
         }
+        return self::session($data, $client);
+    }
+
+    /** the session watching $client, NULL when none is */
+    private static function session(array $data, string $client): ?string
+    {
         foreach ($data['sessions'] as $id => $entry) {
-            if (($entry['client'] ?? '') === $client && (int) ($entry['expires'] ?? 0) >= $now) {
+            if (($entry['client'] ?? '') === $client && (int) ($entry['expires'] ?? 0) >= time()) {
                 return (string) $id;
             }
         }

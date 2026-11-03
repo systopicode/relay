@@ -85,7 +85,7 @@
 					// longer than its lifetime takes the last one it got
 					getToken: () => Promise.resolve(data().token)
 				});
-				client.on('connecting', ctx => p('relay: connecting', url, ctx.code, ctx.reason));
+				// client.on('connecting', ctx => p('relay: connecting', [url, ctx.code, ctx.reason]));
 				client.on('connected', ctx => p('relay: connected', {client: ctx.client, transport: ctx.transport, url: url}));
 				client.on('disconnected', ctx => p('relay: disconnected', ctx.code, ctx.reason));
 				client.on('error', ctx => p('relay: hub error', ctx.type, ctx.error));
@@ -93,6 +93,7 @@
 			}
 			relay.followDevice(d.device);
 			relay.followActive(d.active);
+			relay.followDebug(d.debugClient);
 			if (!Array.isArray(d.channels)) {
 				return;   // nothing rendered in that response - keep listening
 			}
@@ -157,7 +158,30 @@
 			});
 			deviceSub.on('error', ctx => p('relay: device subscription error', channel, ctx.error));
 			deviceSub.subscribe();
-			p('relay: device channel', channel);
+			p('relay: device channel', [channel]);
+		};
+
+		/**
+		 * This browser's debug channel (RemoteDebug), while debug is on. A
+		 * window elsewhere says through it that it watches (the debug tool
+		 * moves its prompts over), that it closed (they come back), and which
+		 * layer of the client tree it hovers (outlined here) - see tools/debug
+		 * js/remote.js. Only with a subscription token for exactly this
+		 * channel - the debug namespace is closed otherwise.
+		 */
+		var debugSub = null;
+		relay.followDebug = debug => {
+			if (!debug || !debug.channel || (debugSub && debugSub.channel === debug.channel)) {
+				return;
+			}
+			if (debugSub) {
+				debugSub.unsubscribe();
+				client.removeSubscription(debugSub);
+			}
+			debugSub = client.getSubscription(debug.channel) || client.newSubscription(debug.channel, {token: debug.token});
+			debugSub.on('publication', ctx => window.sysdebug && sysdebug.remoteSignal && sysdebug.remoteSignal(ctx.data));
+			debugSub.on('error', ctx => p('relay: debug subscription error', debug.channel, ctx.error));
+			debugSub.subscribe();
 		};
 
 		/**
@@ -199,13 +223,13 @@
 					clearTimeout(idleTimer);
 					idleTimer = null;
 				}
-				p('relay: inactive', activeChannel);
+				p('relay: inactive', [activeChannel]);
 				return;
 			}
 			activeSub = client.getSubscription(activeChannel) || client.newSubscription(activeChannel);
 			activeSub.on('error', ctx => p('relay: active subscription error', activeChannel, ctx.error));
 			activeSub.subscribe();
-			p('relay: active', activeChannel);
+			p('relay: active', [activeChannel]);
 			armIdle();
 		};
 		var noteUse = () => {
