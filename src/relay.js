@@ -133,7 +133,7 @@
 		/**
 		 * The channel of this window's device (Relay::deviceTopic), apart from
 		 * the data channels: it holds as long as the device does. "logout"
-		 * (the device was revoked - Meine Geräte, cms/users) first asks the
+		 * (the device was revoked - Meine Geräte, admin/users) first asks the
 		 * server with the heartbeat header (X-Session-Check): that forces the
 		 * device check, which otherwise runs once a minute, and ends the
 		 * session. Then the reload shows the login.

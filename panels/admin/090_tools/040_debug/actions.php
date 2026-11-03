@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @var \Systopic\Relay\Panels\Root\Cms\Tools\Debug\Panel $this
+ * @var \Systopic\Relay\Panels\Root\Admin\Tools\Debug\Panel $this
  */
 
 switch ($this->action) {

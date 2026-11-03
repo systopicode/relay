@@ -7,7 +7,7 @@
  * ajax, route, time …), filled from the hub instead of from this request,
  * docked in tabbed panes (Panel::LAYOUT).
  *
- * @var \Systopic\Relay\Panels\Root\Cms\Tools\Debug\Panel $this
+ * @var \Systopic\Relay\Panels\Root\Admin\Tools\Debug\Panel $this
  * @var array<string, mixed> $window
  * @var string $centrifuge
  */
@@ -42,7 +42,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 		stateNode.className = 'state' + (bad ? ' bad' : '');
 	};
 	if (!cfg.channel) {
-		say('this browser is not on the list (any more) - open the window from cms/tools/debug again', true);
+		say('this browser is not on the list (any more) - open the window from admin/tools/debug again', true);
 		return;
 	}
 	if (typeof Centrifuge === 'undefined' || typeof sysdebug === 'undefined') {
@@ -118,7 +118,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES);
 	setInterval(() => {
 		fetch(cfg.ping, {credentials: 'same-origin', cache: 'no-store'})
 			.then(r => r.json())
-			.then(a => a.alive || say('session ended - open the window from cms/tools/debug again', true))
+			.then(a => a.alive || say('session ended - open the window from admin/tools/debug again', true))
 			.catch(() => say('server not reachable', true));
 	}, cfg.pingSeconds * 1000);
 	addEventListener('pagehide', () => navigator.sendBeacon(cfg.close));

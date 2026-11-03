@@ -12,7 +12,7 @@ use Systopic\System\Auth\Session;
  *
  * Every browser on a stage with debug on gets an id of its own (cookie
  * `sysdebug_client`, before any login, also on the screen page) and lands in
- * the list of `cms/tools/debug`, which opens a window for it. That window is a
+ * the list of `admin/tools/debug`, which opens a window for it. That window is a
  * session: while it lives, every request of that browser streams its debug
  * output (systopic\debug\stream) to the session's channel instead of into its
  * page, and the window shows it. The page's own scripts print there too: their
@@ -47,7 +47,7 @@ final class RemoteDebug
     /** a request writes the list only when its entry is older - not on every ajax call */
     private const TOUCH_GAP = 5;
 
-    /** the query parameters of the window (cms/tools/debug) - its own requests are never streamed */
+    /** the query parameters of the window (admin/tools/debug) - its own requests are never streamed */
     public const WATCH = 'debugWatch';
     public const PING = 'debugPing';
     public const CLOSE = 'debugClose';

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Systopic\Relay\Panels\Root\Cms\Tools\Debug;
+namespace Systopic\Relay\Panels\Root\Admin\Tools\Debug;
 
 use Systopic\Relay\ClientData;
 use Systopic\Relay\Relay;

@@ -4,7 +4,7 @@
  * "Debug window" opens a window of their own for one of them: from its next
  * request on, its debug output shows there instead of in its page.
  *
- * @var \Systopic\Relay\Panels\Root\Cms\Tools\Debug\Panel $this
+ * @var \Systopic\Relay\Panels\Root\Admin\Tools\Debug\Panel $this
  */
 
 use Systopic\Relay\RemoteDebug;
@@ -24,12 +24,12 @@ $ago = static function (int $seen): string {
 	$seconds = max(0, time() - $seen);
 	return $seconds < 60 ? $seconds . ' s' : intdiv($seconds, 60) . ' min';
 };
-$envHref = \http::$root . 'cms/settings/environment/';
+$envHref = \http::$root . 'admin/settings/environment/';
 $node = $this;
-while ($node->parent !== null && $node->name !== 'cms') {
+while ($node->parent !== null && $node->name !== 'admin') {
 	$node = $node->parent;
 }
-$env = $node->name === 'cms' ? $node->child('settings')?->child('environment') : null;
+$env = $node->name === 'admin' ? $node->child('settings')?->child('environment') : null;
 if ($env !== null) {
 	$envHref = $env->getHref(\http::$root);
 }

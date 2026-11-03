@@ -179,7 +179,7 @@ Ein weiterer Lauf lässt die Config stehen. Ein Namespace, der später dazukam, 
 einem bestehenden Hub **von Hand** nachgetragen werden:
 
 - **`device`** (seit 2026-10-26): der Kanal eines Geräts. Ein gesperrtes Gerät
-  („Meine Geräte“, cms/users) hört dort „logout“, und seine offenen Seiten wechseln
+  („Meine Geräte“, admin/users) hört dort „logout“, und seine offenen Seiten wechseln
   sofort zur Anmeldung. In `channel.namespaces` der Config ergänzen und den Hub neu starten:
 
   ```json
@@ -190,7 +190,7 @@ einem bestehenden Hub **von Hand** nachgetragen werden:
   Sperre wirkt wie ohne relay beim nächsten Request.
 
 - **`debug`** (seit 2026-10-27): die Debug-Ausgabe eines Browsers live in einem
-  Fenster (cms/tools/debug, `RemoteDebug`). **Ohne** `allow_subscribe_for_client`:
+  Fenster (admin/tools/debug, `RemoteDebug`). **Ohne** `allow_subscribe_for_client`:
   ein Kanal dort nimmt nur, wer einen Subscription-Token hat, und den gibt nur das
   Panel aus, nur an Superuser. Wer ihn schon mit `allow_subscribe_for_client` hat
   (frühe Installationen), nimmt das heraus:
