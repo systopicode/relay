@@ -56,7 +56,7 @@ final class Relay
     /** afterConnect (autoload.php): the config is read, the database is there. */
     public static function boot(): void
     {
-        $config = Config::current()?->instance->get('relay');
+        $config = Config::current()?->package('relay');
         if (!is_array($config) || ($config['api'] ?? '') === '' || ($config['secret'] ?? '') === '') {
             return;
         }
