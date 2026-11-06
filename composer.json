@@ -7,7 +7,7 @@
     "php": "^8.4",
     "ext-curl": "*",
     "systopic/db": "^1.1",
-    "systopic/system": "^1.4"
+    "systopic/system": "^1.3"
   },
   "autoload": {
     "psr-4": {
