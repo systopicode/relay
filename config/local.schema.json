@@ -1,0 +1,11 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "Relay",
+	"description": "packages.relay in config.local.json: this machine, neither git nor sync. The hub's own keys, written by connectRelay().",
+	"type": "object",
+	"x-optional": true,
+	"properties": {
+		"secret": { "title": "Token secret", "type": "string", "minLength": 16, "writeOnly": true, "x-mandatory": "input" },
+		"apiKey": { "title": "API key", "type": "string", "writeOnly": true, "x-mandatory": "input" }
+	}
+}

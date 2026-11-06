@@ -1,0 +1,14 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "Relay",
+	"description": "packages.relay in an instance file: the connection to the hub.",
+	"type": "object",
+	"x-optional": true,
+	"properties": {
+		"api": { "title": "Hub API", "type": "string" },
+		"client": { "title": "Client path", "type": "string", "default": "/connection/" },
+		"enabled": { "title": "Enabled", "type": "boolean", "default": true },
+		"plainTopics": { "title": "Plain topics", "type": "boolean", "default": false },
+		"prefix": { "title": "Topic prefix", "type": "string", "default": "" }
+	}
+}
