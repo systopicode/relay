@@ -4,11 +4,12 @@
 	"description": "packages.relay in an instance file: the connection to the hub.",
 	"type": "object",
 	"x-optional": true,
+	"x-tool": "Systopic\\Relay\\Settings\\HubTool",
 	"properties": {
-		"api": { "title": "Hub API", "type": "string" },
-		"client": { "title": "Client path", "type": "string", "default": "/connection/" },
-		"enabled": { "title": "Enabled", "type": "boolean", "default": true },
-		"plainTopics": { "title": "Plain topics", "type": "boolean", "default": false },
-		"prefix": { "title": "Topic prefix", "type": "string", "default": "" }
+		"api": { "title": "Hub API", "description": "Where the server reaches the hub's API, the internal port: http://127.0.0.1:8001.", "type": "string" },
+		"client": { "title": "Client path", "description": "Where the browser reaches the hub, on the same host as the page.", "type": "string", "default": "/connection/" },
+		"enabled": { "title": "Enabled", "description": "Off: the connection stays configured, but nothing is published and no browser connects.", "type": "boolean", "default": true },
+		"plainTopics": { "title": "Plain topics", "description": "Readable channel names, for DEV. Off: names hashed with the secret, so a browser only learns the channels of what it was shown.", "type": "boolean", "default": false },
+		"prefix": { "title": "Topic prefix", "description": "The project's part of every channel name. Empty: the project namespace, plus the stage unless LIVE, so STAGING and LIVE on one hub never hear each other.", "type": "string", "default": "" }
 	}
 }

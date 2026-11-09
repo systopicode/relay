@@ -5,7 +5,7 @@
 	"type": "object",
 	"x-optional": true,
 	"properties": {
-		"secret": { "title": "Token secret", "type": "string", "minLength": 16, "writeOnly": true, "x-mandatory": "input" },
-		"apiKey": { "title": "API key", "type": "string", "writeOnly": true, "x-mandatory": "input" }
+		"secret": { "title": "Token secret", "description": "The hub's client.token.hmac_secret_key: signs the tokens of the browsers and hides the channel names.", "type": "string", "minLength": 16, "writeOnly": true, "x-mandatory": "input" },
+		"apiKey": { "title": "API key", "description": "The hub's http_api.key: lets the server publish to the hub.", "type": "string", "writeOnly": true, "x-mandatory": "input" }
 	}
 }
