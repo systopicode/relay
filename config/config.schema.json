@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"title": "Relay",
-	"description": "packages.relay in an instance file: the connection to the hub.",
+	"description": "packages.relay: the connection of the installation to the hub.",
 	"type": "object",
 	"x-optional": true,
 	"x-tool": "Systopic\\Relay\\Settings\\HubTool",
@@ -10,6 +10,8 @@
 		"client": { "title": "Client path", "description": "Where the browser reaches the hub, on the same host as the page.", "type": "string", "default": "/connection/" },
 		"enabled": { "title": "Enabled", "description": "Off: the connection stays configured, but nothing is published and no browser connects.", "type": "boolean", "default": true },
 		"plainTopics": { "title": "Plain topics", "description": "Readable channel names, for DEV. Off: names hashed with the secret, so a browser only learns the channels of what it was shown.", "type": "boolean", "default": false },
-		"prefix": { "title": "Topic prefix", "description": "The project's part of every channel name. Empty: the project namespace, plus the stage unless LIVE, so STAGING and LIVE on one hub never hear each other.", "type": "string", "default": "" }
+		"prefix": { "title": "Topic prefix", "description": "The project's part of every channel name. Empty: the project namespace, plus the stage unless LIVE, so STAGING and LIVE on one hub never hear each other.", "type": "string", "default": "" },
+		"secret": { "title": "Token secret", "description": "The hub's client.token.hmac_secret_key: signs the tokens of the browsers and hides the channel names.", "type": "string", "minLength": 16, "writeOnly": true, "x-mandatory": "input" },
+		"apiKey": { "title": "API key", "description": "The hub's http_api.key: lets the server publish to the hub.", "type": "string", "writeOnly": true, "x-mandatory": "input" }
 	}
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Systopic\Relay\Settings;
 
 use Systopic\System\Auth\Session;
+use Systopic\System\Config\Config;
 use Systopic\System\Panels\PanelNode;
 use Systopic\System\Settings\CentrifugoHub;
 use Systopic\System\Settings\EnvironmentFile;
@@ -12,7 +13,7 @@ use Systopic\System\Settings\SettingsTool;
 use Systopic\System\Settings\ToolView;
 
 /**
- * packages.relay (`x-tool` in machine.schema.json): the connection of this
+ * packages.relay (`x-tool` in config.schema.json): the connection of this
  * environment to the shared hub (Centrifugo), started or stopped here, and
  * the browser addresses the hub has to allow.
  */
@@ -30,7 +31,7 @@ final class HubTool implements SettingsTool
         }
         $e = static fn($v): string => htmlspecialchars((string) $v, ENT_QUOTES);
         $file = $view->file;
-        $relay = EnvironmentFile::effective($file, 'relay');
+        $relay = EnvironmentFile::effective('relay');
         $ready = ($relay['api'] ?? '') !== '' && ($relay['apiKey'] ?? '') !== '' && strlen((string) ($relay['secret'] ?? '')) >= 16;
         $status = CentrifugoHub::status();
         $enabled = $ready && ($relay['enabled'] ?? true) !== false;
@@ -51,7 +52,7 @@ final class HubTool implements SettingsTool
         }
         echo '<p class="cmsBoxLead">Start/Stop affects this project and environment from the next request. The shared server and other projects keep running. Keys stay hidden.</p>';
         if ($view->here) {
-            self::origins($file, $view->data);
+            self::origins();
         }
         echo '</div></section>';
     }
@@ -69,9 +70,8 @@ final class HubTool implements SettingsTool
         if (in_array($action, ['addHubOrigin', 'removeHubOrigin'], true)) {
             $origin = (string) \http::dataset('origin');
             $add = $action === 'addHubOrigin';
-            $data = EnvironmentFile::read($file);
-            $permitted = $add ? CentrifugoHub::projectOrigins($data['matches'] ?? [], self::scheme()) : CentrifugoHub::ownedOrigins($file);
-            if (!in_array($origin, $permitted, true) || !CentrifugoHub::changeOrigin($file, $origin, $add)) {
+            $permitted = $add ? self::addresses() : CentrifugoHub::ownedOrigins(self::owner());
+            if (!in_array($origin, $permitted, true) || !CentrifugoHub::changeOrigin(self::owner(), $origin, $add)) {
                 \message::error('The origin permission was not saved. Check the address and hub config permissions.');
             } else {
                 \message::confirm('Hub config saved. A server administrator must restart the shared hub to apply origin changes. No server was restarted.');
@@ -81,14 +81,14 @@ final class HubTool implements SettingsTool
         }
         if (in_array($action, ['startRelay', 'stopRelay'], true)) {
             $enabled = $action === 'startRelay';
-            EnvironmentFile::enableRelay($file, $enabled)
+            EnvironmentFile::enableRelay($enabled)
                 ? \message::confirm($enabled ? 'Live updates started for this environment. Other open windows follow on their next request.' : 'Live updates stopped for this environment. Other open windows follow on their next request.')
                 : \message::error('Live updates could not be changed.');
             $panel->updateView();
             return;
         }
-        $block = CentrifugoHub::relayBlock(!str_starts_with($file, 'LIVE'));
-        if ($block === null || !EnvironmentFile::connectRelay($file, $block)) {
+        $block = CentrifugoHub::relayBlock(EnvironmentFile::stage() !== 'LIVE');
+        if ($block === null || !EnvironmentFile::connectRelay($block)) {
             \message::error('The hub key was not saved.');
             return;
         }
@@ -101,30 +101,46 @@ final class HubTool implements SettingsTool
         return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     }
 
-    /** @param array<string, mixed> $data */
-    private static function origins(string $file, array $data): void
+    /**
+     * Who owns the origins this installation added to the hub. The name of
+     * the old instance file: what the hub registry already knows stays this
+     * installation's.
+     */
+    private static function owner(): string
     {
-        $e = static fn($v): string => htmlspecialchars((string) $v, ENT_QUOTES);
-        $required = CentrifugoHub::projectOrigins(is_array($data['matches'] ?? null) ? $data['matches'] : [], self::scheme());
-        $owned = CentrifugoHub::ownedOrigins($file);
-        $origins = array_values(array_unique([...$required, ...$owned]));
-        $allowed = CentrifugoHub::allowedOrigins();
-        $invalidIp = false;
-        foreach ($data['matches'] ?? [] as $rule) {
-            foreach (is_array($rule) ? (array) ($rule['serverIp'] ?? []) : [] as $ip) {
-                if (trim((string) $ip) !== '' && !filter_var(trim((string) $ip), FILTER_VALIDATE_IP)) {
-                    $invalidIp = true;
+        return (string) (Config::current()?->instance->name ?? '') . '.config.json';
+    }
+
+    /**
+     * The browser addresses of this installation: the one of this request
+     * and the hosts its sites answer on (Site addresses, Config\Sites).
+     *
+     * @return list<string>
+     */
+    private static function addresses(): array
+    {
+        $hosts = [['serverName' => (string) ($_SERVER['HTTP_HOST'] ?? '')]];
+        foreach (Config::current()?->sites->all() ?? [] as $site) {
+            foreach ($site->entries as $entry) {
+                if ($entry !== '*' && !str_starts_with($entry, '/')) {
+                    $hosts[] = ['serverName' => explode('/', $entry, 2)[0]];
                 }
             }
         }
-        echo '<div class="envHubOrigins"><div class="envHubAddressHeader"><h3>Browser addresses</h3>';
-        if (Session::isSuperuser()) {
-            echo '<button type="button" class="button" data-on_click="addAddress" data-file="' . $e($file) . '"><i class="cmsIcon cmsIcon-plus"></i>Add domain / IP</button>';
-        }
-        echo '</div><p class="cmsBoxLead">Browser origins must be allowed by the shared live-update server. The addresses below come from “Where this config applies”. Shared permissions already exist in the hub configuration; newly added permissions belong to this project.</p>';
-        if ($invalidIp) {
-            echo '<p class="envHubInvalid">An IP address below is invalid. Correct the marked field before adding its hub permission.</p>';
-        }
+        // checked there: no path, no wildcard, an IPv6 in brackets
+        return CentrifugoHub::projectOrigins($hosts, self::scheme());
+    }
+
+    private static function origins(): void
+    {
+        $e = static fn($v): string => htmlspecialchars((string) $v, ENT_QUOTES);
+        $file = EnvironmentFile::LOCAL;
+        $required = self::addresses();
+        $owned = CentrifugoHub::ownedOrigins(self::owner());
+        $origins = array_values(array_unique([...$required, ...$owned]));
+        $allowed = CentrifugoHub::allowedOrigins();
+        echo '<div class="envHubOrigins"><div class="envHubAddressHeader"><h3>Browser addresses</h3></div>';
+        echo '<p class="cmsBoxLead">Browser origins must be allowed by the shared live-update server. The addresses below are the one of this page and the hosts the sites answer on here (System: Site addresses). Shared permissions already exist in the hub configuration; newly added permissions belong to this project.</p>';
         echo '<section class="widget is-list envHubTable"><div class="tableScroll"><table class="envOrigins"><thead><tr><th>Browser address</th><th>Permission</th><th></th></tr></thead><tbody>';
         foreach ($origins as $origin) {
             $known = $allowed === null ? null : CentrifugoHub::originAllowed($origin, $allowed);
