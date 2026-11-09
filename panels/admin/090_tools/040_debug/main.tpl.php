@@ -24,26 +24,26 @@ $ago = static function (int $seen): string {
 	$seconds = max(0, time() - $seen);
 	return $seconds < 60 ? $seconds . ' s' : intdiv($seconds, 60) . ' min';
 };
-$envHref = \http::$root . 'admin/settings/environment/';
+$envHref = \http::$root . 'admin/settings/config/?package=relay';
 $node = $this;
 while ($node->parent !== null && $node->name !== 'admin') {
 	$node = $node->parent;
 }
-$env = $node->name === 'admin' ? $node->child('settings')?->child('environment') : null;
+$env = $node->name === 'admin' ? $node->child('settings')?->child('config') : null;
 if ($env !== null) {
-	$envHref = $env->getHref(\http::$root);
+	$envHref = $env->getHref(\http::$root) . '?package=relay';
 }
 ?>
 <h1>Remote debug</h1>
 <?php if (!RemoteDebug::available()) { ?>
-<div class="cms message is-stay"><div class="warning"><p>Remote debugging is currently unavailable. Enable project live updates and PHP debugging in <a href="<?= $e($envHref) ?>">Environment</a> to use it.</p></div></div>
+<div class="cms message is-stay"><div class="warning"><p>Remote debugging is currently unavailable. Enable project live updates and PHP debugging in <a href="<?= $e($envHref) ?>">Relay configuration</a> to use it.</p></div></div>
 <?php return; } ?>
 <p class="tagsHint">
 	Browsers seen in the last <?= intdiv(RemoteDebug::LIST_SECONDS, 60) ?> minutes. The debug window shows the debug output of one of them
 	live - from its next request on, its own page only says "debug → remote". Closing the window ends that.
 </p>
 <?php if (!CentrifugoHub::status()['running']) { ?>
-	<div class="cms message is-stay"><div class="warning"><p>The hub is not running, so a debug window gets no live output. Open <a class="ajax" href="<?= $e($envHref) ?>">Environment</a>.</p></div></div>
+	<div class="cms message is-stay"><div class="warning"><p>The hub is not running, so a debug window gets no live output. Open <a class="ajax" href="<?= $e($envHref) ?>">Relay configuration</a>.</p></div></div>
 <?php } ?>
 <section class="widget is-list">
 	<header>

@@ -3,6 +3,7 @@
 	"title": "Relay",
 	"description": "packages.relay: the connection of the installation to the hub.",
 	"type": "object",
+	"x-icon": "bolt",
 	"x-optional": true,
 	"x-tool": "Systopic\\Relay\\Settings\\HubTool",
 	"properties": {
